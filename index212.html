@@ -10,7 +10,8 @@
 
     <script>
         // === НАСТРОЙКИ GEMINI AI ===
-        // Используем модель gemini-1.5-flash для надежности.
+        // Вставлен твой ключ. 
+        // Используем модель gemini-1.5-flash для скорости.
         const GEMINI_API_KEY = 'AIzaSyDuQ89DuJCXx9kJoS7qFDWaiNqSYf6l1jI'; 
 
         let socket;
@@ -31,13 +32,7 @@
             }
 
             // Убираем явное указание URL, socket.io сам определит хост
-            try {
-                socket = io(); 
-            } catch (e) {
-                console.error("Socket.io не загружен!", e);
-                alert("Ошибка: Библиотека Socket.io не загрузилась. Проверьте интернет-соединение.");
-                return;
-            }
+            socket = io(); 
 
             socket.on('connect', () => {
                 isConnected = true;
@@ -193,7 +188,35 @@
             position: relative; /* Для SVG оверлея */
             transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* Анимация переворота */
         }
-        
+        /* Анимация мерцания линии */
+        @keyframes glowPurple {
+            0% {
+                stroke-opacity: 1;
+                filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.8));
+            }
+
+            50% {
+                stroke-opacity: 0.4;
+                filter: drop-shadow(0 0 12px rgba(168, 85, 247, 1));
+            }
+
+            100% {
+                stroke-opacity: 1;
+                filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.8));
+            }
+        }
+
+        .last-move-purple {
+            animation: glowPurple 1.2s infinite ease-in-out;
+        }
+
+
+        /* Стиль для линии последнего хода */
+        .last-move-line {
+            filter: drop-shadow(0 0 12px rgba(255, 220, 0, 0.9));
+            animation: glowLine 1s infinite;
+        }
+
         /* Класс для перевернутой доски */
         .board-wrapper.flipped { transform: rotate(180deg); }
         .board-wrapper.flipped .cell { transform: rotate(180deg); } /* Поворачиваем фигуры обратно */
@@ -237,6 +260,51 @@
         input.dark-input { background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; width: 100%; font-family: monospace; }
         .piece.archon-light { color: #ffd700 !important; filter: drop-shadow(0 0 10px #ffeb3b); }
         .piece.archon-dark { color: #00e5ff !important; filter: drop-shadow(0 0 10px #00e5ff); }
+        /* === МОБИЛЬНАЯ АДАПТАЦИЯ === */
+        @media (max-width: 700px) {
+
+            /* Убираем лишнее, фокус на доске */
+            body {
+                overflow: auto;
+            }
+
+            /* Левая панель становится компактной */
+            .w-full.md\:w-80 {
+                width: 100% !important;
+                max-height: 35vh;
+                overflow-y: auto;
+            }
+
+            /* Основная часть (доска) занимает весь экран */
+            .flex-1 {
+                height: 65vh !important;
+                padding: 0 !important;
+            }
+
+            /* Доска подстраивается под ширину экрана */
+            .board-wrapper {
+                max-width: 95vw !important;
+                width: 95vw !important;
+                height: 95vw !important; /* квадрат */
+                aspect-ratio: 1 !important;
+            }
+
+            /* Клетки делают фигуры крупнее */
+            .cell {
+                font-size: 6vw !important;
+            }
+
+            .piece {
+                max-width: 85% !important;
+                max-height: 85% !important;
+            }
+
+            /* Лог уменьшается */
+            #log {
+                max-height: 150px;
+            }
+        }
+
     </style>
 </head>
 <body class="flex flex-col md:flex-row h-screen">
@@ -256,6 +324,11 @@
                 <span>Лояльность: <span id="loyalty" class="text-white">3</span></span>
             </div>
         </div>
+        <div class="text-[10px] text-gray-400 flex justify-between mt-1">
+            <span>Мораль Белых: <span id="morale-w" class="text-emerald-400">10</span></span>
+            <span>Мораль Черных: <span id="morale-b" class="text-emerald-400">10</span></span>
+        </div>
+
 
         <div class="stat-box">
             <div id="online-status" class="text-[10px] text-gray-500 mb-2 font-bold">СЕТЬ: НЕ ПОДКЛЮЧЕНА</div>
@@ -350,6 +423,69 @@
             white: { k: true, l: true, r: true },
             black: { k: true, l: true, r: true }
         };
+        function updateLossCounters() {
+            // Стоимость фигур в пешках
+            const pieceValue = {
+                p: 1, P: 1,        // пешки
+                n: 3, N: 3,        // кони
+                b: 3, B: 3,        // слоны
+                r: 5, R: 5,        // ладьи
+                a: 8, A: 8,        // архонты/канцлеры светлый
+                c: 8, C: 8,        // архонты/канцлеры тёмный
+                h: 6, H: 6,        // легион
+                q: 10, Q: 10       // ферзь
+                // Химеру X/x не указываем → потери не считаются
+            };
+
+            // Стартовая стоимость армии (в пешках)
+            const START_VALUE =
+                8 * 1 +   // пешки
+                2 * 3 +   // кони
+                2 * 3 +   // слоны
+                2 * 5 +   // ладьи
+                1 * 10;   // ферзь
+            // Король = 0
+
+            let whiteCurrent = 0;
+            let blackCurrent = 0;
+
+            // Подсчитываем текущую стоимость армии
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    if (!p) continue;
+
+                    if (!pieceValue[p]) continue; // игнорируем короля и химеру
+
+                    if (p === p.toUpperCase()) blackCurrent += pieceValue[p];
+                    else whiteCurrent += pieceValue[p];
+                }
+            }
+
+            // Потери = стартовая стоимость - текущая
+            const whiteLoss = START_VALUE - whiteCurrent;
+            const blackLoss = START_VALUE - blackCurrent;
+
+            document.getElementById('loss-w').innerText = whiteLoss;
+            document.getElementById('loss-b').innerText = blackLoss;
+        }
+        function updateMoraleUI() {
+            document.getElementById("morale-w").innerText = whiteMorale.toFixed(1);
+            document.getElementById("morale-b").innerText = blackMorale.toFixed(1);
+
+            // цвет меняем в зависимости от состояния
+            const wElem = document.getElementById("morale-w");
+            const bElem = document.getElementById("morale-b");
+
+            const colorize = (el, morale) => {
+                if (morale > 6) el.style.color = "#34d399";      // зелёный — армия уверена
+                else if (morale > 3) el.style.color = "#fbbf24"; // жёлтый — тревога
+                else el.style.color = "#f87171";                 // красный — паника
+            };
+
+            colorize(wElem, whiteMorale);
+            colorize(bElem, blackMorale);
+        }
 
         function initGame() {
             board = [];
@@ -539,7 +675,6 @@
             const pawnAttackFromDir = (opp === 'white') ? 1 : -1;
             for (let dc of [-1, 1]) {
                 const pr = kr + pawnAttackFromDir, pc = kc + dc;
-                if (pr >= 8 || pr < 0) continue; // Boundary check fix
                 if (pr >= 0 && pr < 8 && pc >= 0 && pc < 8) {
                     const p = bd[pr][pc];
                     if (p && getCol(p) === opp && getType(p) === 'p') return true;
@@ -772,120 +907,74 @@
             
             // Сохраняем локально последний ход для анимации
             lastMoveData = moveDetails;
+            updateLossCounters();
 
             updateUI(); render();
+            updateMoraleUI();
+
             checkGameState();
         }
 
-        // === ИНТЕЛЛЕКТ ПЕШЕК (GEMINI AI) ===
-        async function consultGeminiLoyalty() {
-            let w=0, b=0;
-            for(let r=0;r<8;r++)for(let c=0;c<8;c++){ if(board[r][c]) getCol(board[r][c])==='white'?w++:b++; }
-            const wLoss = 16-w, bLoss = 16-b;
-            const diff = wLoss - bLoss;
+        let whiteMorale = 10;
+        let blackMorale = 10;
 
-            // Если API ключа нет, используем локальную эвристику (как было раньше)
-            if (!GEMINI_API_KEY) {
-                console.log("Gemini API Key missing. Using local heuristic.");
-                checkLoyaltyLocal(wLoss, bLoss);
-                return;
-            }
+        function consultGeminiLoyalty() {
 
-            log("Опрос пешек (AI)...");
+            const whiteLoss = parseInt(document.getElementById("loss-w").innerText);
+            const blackLoss = parseInt(document.getElementById("loss-b").innerText);
 
-            // Формируем описание ситуации для AI
-            const situation = {
-                whiteLosses: wLoss,
-                blackLosses: bLoss,
-                boardState: board.map(row => row.map(p => p ? p : '.').join(' ')).join('\n')
-            };
+            // более чувствительная мораль
+            whiteMorale = Math.max(0, 10 - whiteLoss / 3);
+            blackMorale = Math.max(0, 10 - blackLoss / 3);
 
-            const prompt = `
-            You are the 'Spirit of Loyalty' in a chess game. Analyze the board state.
-            Pawns may defect to the enemy if their side is losing heavily or if they are isolated/unprotected.
-            
-            Rules:
-            1. Higher losses = higher chance of defection.
-            2. Isolated pawns (no friendly neighbors) = higher chance.
-            3. Protected pawns = very low chance.
-            
-            Current state:
-            White Losses: ${situation.whiteLosses}
-            Black Losses: ${situation.blackLosses}
-            Board (Uppercase=Black, Lowercase=White):
-            ${situation.boardState}
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
 
-            Return a JSON object ONLY with a list of pawns that defect. Format:
-            { "defectors": [ { "r": row, "c": col, "newColor": "white"|"black" } ] }
-            If no one defects, return empty list. Be conservative, don't defect too often.
-            `;
+                    const p = board[r][c];
+                    if (!p || getType(p) !== 'p') continue;
 
-            try {
-                // ИСПОЛЬЗУЕМ gemini-1.5-flash-latest для совместимости с алиасами (исправлено)
-                // Если не работает, пробуем gemini-pro (fallback)
-                let model = 'gemini-1.5-flash-latest';
-                let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
+                    const color = getCol(p);
+                    const morale = (color === "white") ? whiteMorale : blackMorale;
 
-                let data = await response.json();
-                
-                // Проверяем наличие ошибки, если модель не найдена, пробуем старую добрую
-                if (data.error) {
-                    console.warn(`Model ${model} failed, retrying with gemini-pro...`, data.error);
-                    model = 'gemini-pro';
-                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                    });
-                    data = await response.json();
-                }
+                    if (morale > 3) continue;
 
-                if (data.error) {
-                    console.error("Gemini API Error (Final):", data.error);
-                    const errorMsg = document.createElement('div');
-                    errorMsg.style.color = '#ef4444'; // Красный
-                    errorMsg.innerText = `> AI Ошибка: ${data.error.message || 'Unknown error'}`;
-                    document.getElementById('log').prepend(errorMsg);
-                    return;
-                }
+                    let chance = 0;
 
-                if (!data.candidates || !data.candidates[0].content) {
-                    throw new Error("No candidates returned");
-                }
+                    if (morale <= 3) chance = 0.05 + Math.random() * 0.10;   // 5–15%
+                    if (morale <= 1) chance = 0.20 + Math.random() * 0.10;   // 20–30%
 
-                const text = data.candidates[0].content.parts[0].text;
-                
-                // Пытаемся распарсить JSON из ответа (Gemini может добавить markdown ```json)
-                const jsonMatch = text.match(/\{[\s\S]*\}/);
-                const jsonStr = jsonMatch ? jsonMatch[0] : text;
-                const result = JSON.parse(jsonStr);
+                    // ПРОВЕРКА ВСЕХ 8 соседних клеток
+                    let enemyNearby = false;
+                    const dirs = [
+                        [1, 0], [-1, 0], [0, 1], [0, -1],
+                        [1, 1], [1, -1], [-1, 1], [-1, -1]
+                    ];
 
-                if (result.defectors && result.defectors.length > 0) {
-                    result.defectors.forEach(d => {
-                        const p = board[d.r][d.c];
-                        if (p && getType(p) === 'p') {
-                            // Меняем цвет пешки
-                            board[d.r][d.c] = (d.newColor === 'white' ? 'p' : 'P');
-                            log(`ИЗМЕНА! Пешка на [${d.r},${d.c}] перешла к ${d.newColor === 'white' ? 'белым' : 'черным'}!`);
+                    for (let [dr, dc] of dirs) {
+                        const rr = r + dr, cc = c + dc;
+                        if (!onBd(rr, cc)) continue;
+                        const enemy = board[rr][cc];
+                        if (enemy && getCol(enemy) !== color) {
+                            enemyNearby = true;
+                            break;
                         }
-                    });
-                    render();
-                } else {
-                    log("Пешки остаются верны.");
-                }
+                    }
 
-            } catch (e) {
-                console.error("AI Error:", e);
-                const errorDiv = document.createElement('div');
-                errorDiv.style.color = '#ef4444';
-                errorDiv.innerText = `> AI Ошибка соединения.`;
-                document.getElementById('log').prepend(errorDiv);
+                    if (!enemyNearby) continue;
+
+                    // Измена
+                    if (Math.random() < chance) {
+                        board[r][c] = (color === "white") ? "P" : "p";
+                        log(`⚠ Пешка на (${r},${c}) изменила сторону!`);
+                    }
+                }
             }
+            updateMoraleUI();
+
+            render();
         }
+
+
 
         function checkLoyaltyLocal(wLoss, bLoss) {
             const lossDiff = wLoss - bLoss;
@@ -1032,12 +1121,15 @@
                     div.appendChild(d);
                 }
             }
+            ;
 
             // === ОТРИСОВКА ЛИНИИ ПОСЛЕДНЕГО ХОДА ===
             if (lastMoveData && lastMoveData.from && lastMoveData.to) {
                 // ИСПРАВЛЕННАЯ ССЫЛКА НА ПРОСТРАНСТВО ИМЕН SVG
-                const line = document.createElementNS("[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)", "line");
-                
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.classList.add("last-move-purple");
+
+
                 // Координаты центров клеток (в процентах)
                 // Ширина клетки = 12.5%, Центр = 6.25%
                 const x1 = (lastMoveData.from.c * 12.5 + 6.25) + '%';
@@ -1050,7 +1142,7 @@
                 line.setAttribute('x2', x2);
                 line.setAttribute('y2', y2);
                 line.setAttribute('stroke', 'rgba(124, 58, 237, 0.5)'); // Полупрозрачный фиолетовый
-                line.setAttribute('stroke-width', '4');
+                line.setAttribute('stroke-width', '6');
                 line.setAttribute('stroke-linecap', 'round');
                 
                 svg.appendChild(line);
