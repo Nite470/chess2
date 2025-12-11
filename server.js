@@ -140,7 +140,6 @@ function getDefaultBoard() {
 
 server.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
-import fetch from "node-fetch";
 import express from "express";
 const app = express();
 app.use(express.json());
@@ -179,3 +178,4 @@ app.post("/ai", async (req, res) => {
 });
 
 });
+
