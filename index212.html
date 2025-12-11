@@ -571,8 +571,10 @@
                 [[d,1],[d,-1]].forEach(([dr,dc]) => {
                     if (onBd(r+dr, c+dc)) {
                         const t = board[r+dr][c+dc];
-                        if (!safe || (t && getCol(t) !== col))
-                            m.push({r:r+dr, c:c+dc, atk:true});
+                        if (t && getCol(t) !== col) {
+                            m.push({ r: r + dr, c: c + dc, atk: true });
+                        }
+
                     }
                 });
             }
@@ -1051,6 +1053,99 @@
             render();
         }
 
+        function isSquareThreatened(bd, r, c, byColor) {
+
+            // --- Пешки ---
+            if (byColor === "white") {
+                // белая пешка бьёт (r,c), если стоит на (r+1, c±1)
+                let rr = r + 1;
+                for (let dc of [-1, +1]) {
+                    let cc = c + dc;
+                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                        let p = bd[rr][cc];
+                        if (p && getCol(p) === "white" && getType(p) === "p") return true;
+                    }
+                }
+            } else {
+                // чёрная пешка бьёт (r,c), если стоит на (r-1, c±1)
+                let rr = r - 1;
+                for (let dc of [-1, +1]) {
+                    let cc = c + dc;
+                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                        let p = bd[rr][cc];
+                        if (p && getCol(p) === "black" && getType(p) === "p") return true;
+                    }
+                }
+            }
+
+
+            // --- 2. Конь / Химера / Легион ---
+            const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
+            const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
+            for (let [dr, dc] of [...knightSmall, ...knightLarge]) {
+                let rr = r + dr, cc = c + dc;
+                if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                    let p = bd[rr][cc];
+                    if (!p) continue;
+                    if (getCol(p) !== byColor) continue;
+
+                    let t = getType(p);
+                    if (t === 'n' && knightSmall.some(k => k[0] === dr && k[1] === dc)) return true;
+                    if (t === 'h' && knightLarge.some(k => k[0] === dr && k[1] === dc)) return true;
+                    if (t === 'x') return true; // химера бьёт и малыми, и большими
+                }
+            }
+
+            // --- 3. Ладья / Ферзь / Z / Архонт прямой ---
+            const rookDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+            for (let [dr, dc] of rookDirs) {
+                let rr = r + dr, cc = c + dc;
+                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                    let p = bd[rr][cc];
+                    if (p) {
+                        if (getCol(p) === byColor) {
+                            let t = getType(p);
+                            if (t === 'r' || t === 'q' || t === 'z' || t === 'a' || t === 'c')
+                                return true;
+                        }
+                        break; // первая фигура блокирует дальше
+                    }
+                    rr += dr; cc += dc;
+                }
+            }
+
+            // --- 4. Слон / Ферзь / Z / Архонт диагонали ---
+            const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+            for (let [dr, dc] of diagDirs) {
+                let rr = r + dr, cc = c + dc;
+                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                    let p = bd[rr][cc];
+                    if (p) {
+                        if (getCol(p) === byColor) {
+                            let t = getType(p);
+                            if (t === 'b' || t === 'q' || t === 'z' || t === 'a' || t === 'c')
+                                return true;
+                        }
+                        break;
+                    }
+                    rr += dr; cc += dc;
+                }
+            }
+
+            // --- 5. Король ---
+            for (let dr of [-1, 0, 1]) {
+                for (let dc of [-1, 0, 1]) {
+                    if (dr === 0 && dc === 0) continue;
+                    let rr = r + dr, cc = c + dc;
+                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                        let p = bd[rr][cc];
+                        if (p && getCol(p) === byColor && getType(p) === 'k') return true;
+                    }
+                }
+            }
+
+            return false;
+        }
 
 
         function checkLoyaltyLocal(wLoss, bLoss) {
@@ -1250,8 +1345,103 @@
             selected = null; moves = [];
             render(); updateUI(); checkGameState();
         };
+
+        function isDefended(bd, r, c, color) {
+
+            // --- Пешки ---
+            if (color === "white") {
+                let rr = r + 1;
+                for (let dc of [-1, +1]) {
+                    let cc = c + dc;
+                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                        const p = bd[rr][cc];
+                        if (p && getCol(p) === "white" && getType(p) === "p") return true;
+                    }
+                }
+            } else {
+                let rr = r - 1;
+                for (let dc of [-1, +1]) {
+                    let cc = c + dc;
+                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                        const p = bd[rr][cc];
+                        if (p && getCol(p) === "black" && getType(p) === "p") return true;
+                    }
+                }
+            }
+
+            // --- Конь / Химера / Легион ---
+            const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
+            const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
+            for (let [dr, dc] of [...knightSmall, ...knightLarge]) {
+                let rr = r + dr, cc = c + dc;
+                if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                    let p = bd[rr][cc];
+                    if (!p || getCol(p) !== color) continue;
+                    let t = getType(p);
+                    if (t === "n" && knightSmall.some(k => k[0] === dr && k[1] === dc)) return true;
+                    if (t === "h" && knightLarge.some(k => k[0] === dr && k[1] === dc)) return true;
+                    if (t === "x") return true;
+                }
+            }
+
+            // --- Ладья / ферзь / z / архонт прямые ---
+            const rookDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+            for (let [dr, dc] of rookDirs) {
+                let rr = r + dr, cc = c + dc;
+                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                    let p = bd[rr][cc];
+                    if (p) {
+                        if (getCol(p) === color) {
+                            let t = getType(p);
+                            if (t === "r" || t === "q" || t === "z" || t === "a" || t === "c") return true;
+                        }
+                        break;
+                    }
+                    rr += dr; cc += dc;
+                }
+            }
+
+            // --- Слон / ферзь / archon диагонали ---
+            const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+            for (let [dr, dc] of diagDirs) {
+                let rr = r + dr, cc = c + dc;
+                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                    let p = bd[rr][cc];
+                    if (p) {
+                        if (getCol(p) === color) {
+                            let t = getType(p);
+                            if (t === "b" || t === "q" || t === "z" || t === "a" || t === "c") return true;
+                        }
+                        break;
+                    }
+                    rr += dr; cc += dc;
+                }
+            }
+
+            // --- Король ---
+            for (let dr of [-1, 0, 1]) {
+                for (let dc of [-1, 0, 1]) {
+                    if (dr === 0 && dc === 0) continue;
+                    let rr = r + dr, cc = c + dc;
+                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+                        let p = bd[rr][cc];
+                        if (p && getCol(p) === color && getType(p) === "k") return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+
+
         function evaluateBoard(board, color) {
             let score = 0;
+            // запрещаем любые ходы, которые оставляют короля под шахом
+            const after = simulateMove(board, from, mv);
+            if (inCheck(color, after)) {
+                return -9999; // ход абсолютно запрещён
+            }
 
             // Базовая стоимость фигур
             const values = {
@@ -1287,37 +1477,83 @@
 
             return score;
         }
+        
 
         // Оценка конкретного хода
         function evaluateMove(from, mv, board, color) {
             let score = 0;
 
             const piece = board[from.r][from.c];
+            // --- Король НЕ должен ходить без угрозы ---
+            if (getType(piece) === 'k') {
+                // если королю НЕ угрожают — большой штраф на любое движение
+                if (!isSquareThreatened(board, from.r, from.c, opposite(color))) {
+                    score -= 5;   // король не должен ходить просто так
+                }
+
+                // если новая клетка хуже или под ударом — ОГРОМНЫЙ штраф
+                const after = simulateMove(board, from, mv);
+                const attackedK = isSquareThreatened(after, mv.r, mv.c, opposite(color));
+                if (attackedK) {
+                    score -= 999;    // королём ТАК ХОДИТЬ НЕЛЬЗЯ
+                }
+            }
+
             const target = board[mv.r][mv.c];
 
-            // 1: мат / шах
-            const testBoard = simulateMove(board, from, mv);
-            if (inCheck(opposite(color), testBoard)) score += 20;
+            // --- 0: фигура под ударом → спасаемся ---
+            const underAttack = isSquareThreatened(board, from.r, from.c, opposite(color));
 
-            // 2: взятие (материал)
+            if (underAttack) {
+
+                // если клетка после хода НЕ под боем → СИЛЬНЕЙШИЙ ПРИОРИТЕТ
+                const after = simulateMove(board, from, mv);
+                const attackedNew = isSquareThreatened(after, mv.r, mv.c, opposite(color));
+                const defendedNew = isDefended(after, mv.r, mv.c, color);
+
+                if (!attackedNew) {
+                    score += 1000; // абсолютное лидерство
+                }
+                else if (attackedNew && defendedNew) {
+                    score += 200; // полубезопасное поле — супер важно
+                }
+            }
+
+
+            // --- 1: мат / шах
+            const testBoard = simulateMove(board, from, mv);
+            if (inCheck(opposite(color), testBoard)) score += 5;
+
+            // --- 2: обычное взятие
             if (target) {
                 score += getPieceValue(target) * 1.2;
             }
 
-            // 3: безопасность (не подставляемся)
+            // --- 3: безопасность новой клетки
             const after = simulateMove(board, from, mv);
-            if (inCheck(color, after)) score -= 10;
+            const attacked = isSquareThreatened(after, mv.r, mv.c, opposite(color));
+            const defended = isDefended(after, mv.r, mv.c, color);
 
-            // 4: выход из угла / развитие
+            if (attacked && !defended) {
+                // клетка под ударом и НЕ защищена → плохой ход
+                score -= getPieceValue(piece) * 10;
+            }
+            else if (attacked && defended) {
+                // под боем, но защищено → маленький штраф
+                score -= getPieceValue(piece) * 2;
+            }
+
+
+            // --- 4: развитие
             if (piece.toLowerCase() === 'n' || piece.toLowerCase() === 'b') {
                 if (from.r === 7 && color === 'black') score += 0.5;
                 if (from.c === 7 && color === 'black') score += 0.3;
             }
 
-            // 5: контроль центра
+            // --- 5: контроль центра
             if ([3, 4].includes(mv.r) && [3, 4].includes(mv.c)) score += 0.4;
 
-            // 6: штраф за повторные ходы (туда-сюда)
+            // --- 6: штраф за тупой повтор
             if (lastMoveData &&
                 lastMoveData.from &&
                 lastMoveData.to &&
@@ -1325,48 +1561,154 @@
                 lastMoveData.from.c === mv.c &&
                 lastMoveData.to.r === from.r &&
                 lastMoveData.to.c === from.c) {
-                score -= 2;
+                score -= 10;
+            }
+
+            // --- 7: приоритет безопасного взятия незащищённой фигуры ---
+            if (target) {
+                // если цель НЕ защищена — огромный бонус
+                if (!isSquareThreatened(after, mv.r, mv.c, opposite(color))) {
+                    score += getPieceValue(target) * 8;
+                }
             }
 
             return score;
         }
 
+
         // НОВЫЙ ИИ (уровень B)
         function makeAIMove() {
             if (!aiEnabled) return;
             if (window.isOnlineActive()) return;
-            if (pendingMove) {
-                declineProp();
+            if (pendingMove) { declineProp(); return; }
+            // === АНТИ-МАТ В 1 ХОД ===
+            const anti = findAntiMateMove(aiColor);
+            if (anti) {
+                executeAImove(anti);
                 return;
             }
 
-            let bestScore = -9999;
+            let bestScore = -999999;
             let bestMove = null;
 
-            // Перебор всех фигур чёрных
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
-                    if (board[r][c] && getCol(board[r][c]) === aiColor) {
-                        let mvList = getMoves(r, c, true).filter(m => !m.prop && !m.merge && !m.fuse);
 
-                        for (let mv of mvList) {
-                            let score = evaluateMove({ r, c }, mv, board, aiColor);
+                    if (!board[r][c] || getCol(board[r][c]) !== aiColor) continue;
 
-                            if (score > bestScore) {
-                                bestScore = score;
-                                bestMove = { from: { r, c }, to: mv };
-                            }
+                    // 1 — все возможные ходы
+                    let rawMoves = getMoves(r, c, false)
+                        .filter(m => !m.prop && !m.merge && !m.fuse);
+
+                    // 2 — убираем ходы, которые оставят короля под шахом
+                    let legalMoves = [];
+                    for (let mv of rawMoves) {
+                        const after = simulateMove(board, { r, c }, mv);
+                        if (!inCheck(aiColor, after)) legalMoves.push(mv);
+                    }
+
+                    if (legalMoves.length === 0) continue;
+
+                    // 3 — классификация по безопасности
+                    let safeMoves = [];
+                    let semiMoves = [];
+                    let badMoves = [];
+
+                    for (let mv of legalMoves) {
+                        const after = simulateMove(board, { r, c }, mv);
+                        const attacked = isSquareThreatened(after, mv.r, mv.c, opposite(aiColor));
+                        const defended = isDefended(after, mv.r, mv.c, aiColor);
+
+                        if (!attacked) {
+                            safeMoves.push(mv);             // полностью безопасно
+                        }
+                        else if (defended) {
+                            semiMoves.push(mv);             // под боем, но защищено
+                        }
+                        else {
+                            badMoves.push(mv);              // фигуру съедят
+                        }
+                    }
+
+                    // 4 — выбираем категорию ПРИОРИТЕТА
+                    let priorityMoves =
+                        safeMoves.length ? safeMoves :
+                            semiMoves.length ? semiMoves :
+                                badMoves;
+
+                    // 5 — оцениваем ТОЛЬКО ходы выбранной категории
+                    for (let mv of priorityMoves) {
+                        const score = evaluateMove({ r, c }, mv, board, aiColor);
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMove = { from: { r, c }, to: mv };
                         }
                     }
                 }
             }
 
-            if (!bestMove) {
-                // нет ходов
-                return;
+            if (!bestMove) return;
+            executeAImove(bestMove);
+        }
+
+        function canOpponentMateNextMove(color, bd) {
+            const opp = opposite(color);
+
+            // Ищем короля ИИ
+            let kr = -1, kc = -1;
+            for (let r = 0; r < 8; r++)
+                for (let c = 0; c < 8; c++)
+                    if (bd[r][c] && getCol(bd[r][c]) === color && getType(bd[r][c]) === 'k') {
+                        kr = r; kc = c;
+                    }
+
+            // Перебираем ходы противника
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (!bd[r][c] || getCol(bd[r][c]) !== opp) continue;
+
+                    const moves = getMoves(r, c, false);
+
+                    for (let mv of moves) {
+                        const after = simulateMove(bd, { r, c }, mv);
+
+                        // Если после хода будет шах нашему королю
+                        if (inCheck(color, after)) {
+                            return { from: { r, c }, to: mv };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function findAntiMateMove(color) {
+            const threat = canOpponentMateNextMove(color, board);
+            if (!threat) return null;
+
+            // Перебираем ВСЕ ходы ИИ
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (!board[r][c] || getCol(board[r][c]) !== color) continue;
+
+                    const moves = getMoves(r, c, false);
+
+                    for (let mv of moves) {
+                        const after = simulateMove(board, { r, c }, mv);
+
+                        // Ход должен быть ЛЕГАЛЬНЫМ
+                        if (inCheck(color, after)) continue;
+
+                        // Если после хода СТРАШНЫЙ ХОД ПРОТИВНИКА перестаёт быть матом
+                        const oppMate = canOpponentMateNextMove(color, after);
+                        if (!oppMate) {
+                            return { from: { r, c }, to: mv };
+                        }
+                    }
+                }
             }
 
-            executeAImove(bestMove);
+            return null;
         }
 
 
