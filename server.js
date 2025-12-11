@@ -140,42 +140,4 @@ function getDefaultBoard() {
 
 server.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
-import express from "express";
-const app = express();
-app.use(express.json());
-
-const API_KEY = process.env.GEMINI_KEY;
-
-app.post("/ai", async (req, res) => {
-    const { prompt } = req.body;
-
-    try {
-        const response = await fetch(
-            "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generate",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-goog-api-key": API_KEY
-                },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            role: "user",
-                            parts: [{ text: prompt }]
-                        }
-                    ]
-                })
-            }
-        );
-
-        const data = await response.json();
-        res.send(data);
-    } catch (e) {
-        console.error(e);
-        res.status(500).send({ error: "AI error", detail: e });
-    }
 });
-
-});
-
