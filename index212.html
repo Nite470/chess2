@@ -933,33 +933,42 @@
         function endTurn(sr, sc, mv, moveDetails) {
             const nextTurn = turn === 'white' ? 'black' : 'white';
 
-            // 1. Сначала увеличиваем счетчик
+            // 1. Увеличиваем счетчик ходов
             moveCount++;
 
-            // 2. Затем выполняем механику переворота Химеры (если нужно)
-            // Она перевернется и локально, и в массиве board, который уйдет в сеть
-            if (moveCount % 2 === 0) {
-                for (let r = 0; r < 8; r++) {
-                    for (let c = 0; c < 8; c++) {
-                        if (board[r][c] === 'x') board[r][c] = 'X';
-                        else if (board[r][c] === 'X') board[r][c] = 'x';
+            // 2. === НОВАЯ ЛОГИКА ХИМЕРЫ (FIX) ===
+            // Вместо "переворота" мы принудительно задаем цвет в зависимости от номера хода.
+            // Math.floor((moveCount - 1) / 2) % 2 дает последовательность: 0, 0, 1, 1, 0, 0, 1, 1...
+            // Это гарантирует смену ровно каждые 2 хода.
+
+            const chimeraPhase = Math.floor((moveCount - 1) / 2) % 2;
+            // 0 = фаза Белых, 1 = фаза Черных
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    // Проверяем, является ли фигура Химерой (x или X)
+                    if (p && (p === 'x' || p === 'X')) {
+                        if (chimeraPhase === 0) {
+                            board[r][c] = 'x'; // Принудительно ставим Белую ('x')
+                        } else {
+                            board[r][c] = 'X'; // Принудительно ставим Черную ('X')
+                        }
                     }
                 }
-                // Если была замена, сообщим об этом в лог (опционально)
-                // log("ХИМЕРА: Смена контроля."); 
             }
 
-            // Если moveDetails не передан...
+            // Если moveDetails не передан (например, при пропуске хода или спецэффектах)
             if (!moveDetails && typeof sr !== 'undefined') {
                 moveDetails = { from: { r: sr, c: sc }, to: mv };
             }
 
-            // 3. И только ТЕПЕРЬ отправляем финальное состояние
+            // 3. Отправляем обновленное состояние (с уже покрашенной Химерой)
             if (window.isOnlineActive()) {
-                // Передаем moveCount последним аргументом
                 window.sendMoveToCloud(board, nextTurn, moveDetails, castling, gameMode, moveCount);
             }
 
+            // Логика морали
             loyalty--;
             if (loyalty <= 0) {
                 consultGeminiLoyalty();
@@ -991,9 +1000,6 @@
 
             checkGameState();
         }
-        let whiteMorale = 10;
-        let blackMorale = 10;
-
         function consultGeminiLoyalty() {
 
             const whiteLoss = parseInt(document.getElementById("loss-w").innerText);
