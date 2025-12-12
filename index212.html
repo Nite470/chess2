@@ -63,7 +63,32 @@
 
         function setupSocketListeners() {
             // ... (остальной код listener-ов, room_list и т.д. оставляем как был) ...
+            socket.on('room_list', (rooms) => {
+                const listEl = document.getElementById('room-list-container');
+                listEl.innerHTML = '';
+                if (rooms.length === 0) {
+                    listEl.innerHTML = '<div class="text-gray-500 text-[10px] italic">Нет доступных комнат</div>';
+                    return;
+                }
+                rooms.forEach(room => {
+                    const roomBtn = document.createElement('button');
+                    roomBtn.className = "w-full text-left bg-slate-800 hover:bg-slate-700 border border-slate-600 p-2 mb-1 rounded text-xs flex justify-between items-center group transition-all";
+                    roomBtn.onclick = () => {
+                        document.getElementById('room-input').value = room.id;
+                        joinGame();
+                    };
+                    roomBtn.innerHTML = `
+            <span class="text-blue-400 font-mono font-bold group-hover:text-blue-300">#${room.id}</span>
+            <span class="text-gray-400 text-[9px]">Игроков: ${room.count}/2</span>
+        `;
+                    listEl.appendChild(roomBtn);
+                });
+            });
 
+            socket.on('player_joined', (data) => {
+                log(`Игрок подключился! Комната: ${data.roomId}`);
+                document.getElementById('online-msg').innerText = "Соперник в игре!";
+            });
             socket.on('game_start', (data) => {
                 myOnlineColor = data.color;
                 currentRoomId = data.roomId;
