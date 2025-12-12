@@ -60,48 +60,30 @@
         window.onload = () => {
             connectToServer();
         };
-        function setupSocketListeners() {
-            socket.on('room_list', (rooms) => {
-                const listEl = document.getElementById('room-list-container');
-                listEl.innerHTML = ''; 
-                if (rooms.length === 0) {
-                    listEl.innerHTML = '<div class="text-gray-500 text-[10px] italic">Нет доступных комнат</div>';
-                    return;
-                }
-                rooms.forEach(room => {
-                    const roomBtn = document.createElement('button');
-                    roomBtn.className = "w-full text-left bg-slate-800 hover:bg-slate-700 border border-slate-600 p-2 mb-1 rounded text-xs flex justify-between items-center group transition-all";
-                    roomBtn.onclick = () => {
-                        document.getElementById('room-input').value = room.id;
-                        joinGame();
-                    };
-                    roomBtn.innerHTML = `
-                        <span class="text-blue-400 font-mono font-bold group-hover:text-blue-300">#${room.id}</span>
-                        <span class="text-gray-400 text-[9px]">Игроков: ${room.count}/2</span>
-                    `;
-                    listEl.appendChild(roomBtn);
-                });
-            });
 
-            socket.on('player_joined', (data) => {
-                log(`Игрок подключился! Комната: ${data.roomId}`);
-                document.getElementById('online-msg').innerText = "Соперник в игре!";
-            });
+        function setupSocketListeners() {
+            // ... (остальной код listener-ов, room_list и т.д. оставляем как был) ...
 
             socket.on('game_start', (data) => {
                 myOnlineColor = data.color;
                 currentRoomId = data.roomId;
+                moveCount = 0; // Сброс счетчика при старте
                 window.syncBoardFromOnline(data.board, data.turn, data.castling);
                 window.enterOnlineMode(data.roomId, `Вы играете за: ${myOnlineColor === 'white' ? 'БЕЛЫХ' : 'ЧЕРНЫХ'}`);
                 log(`Игра началась! Ваш цвет: ${myOnlineColor.toUpperCase()}`);
             });
 
             socket.on('receive_move', (data) => {
+                // Синхронизируем счетчик ходов с сервера!
+                if (typeof data.moveCount !== 'undefined') {
+                    moveCount = data.moveCount;
+                }
+
                 if (data.mode && gameMode !== data.mode) {
                     gameMode = data.mode;
                     if (data.mode === 'new_mode') {
                         kingDead = true;
-                        newModePlayer = data.turn; 
+                        newModePlayer = data.turn;
                     }
                 }
 
@@ -118,22 +100,20 @@
                     }
                 } else {
                     window.syncBoardFromOnline(data.board, data.turn, data.castling);
-                    
-                    // Сохраняем последний ход для отрисовки линии
+
                     lastMoveData = data.lastMove || null;
 
-                    for (let r = 0; r < 8; r++) {
-                        for (let c = 0; c < 8; c++) {
-                            if (board[r][c] === 'x') board[r][c] = 'X';
-                            else if (board[r][c] === 'X') board[r][c] = 'x';
-                        }
-                    }
+                    // === УДАЛЕНО: ЦИКЛ ПЕРЕВОРОТА ХИМЕРЫ ===
+                    // Мы теперь доверяем доске, пришедшей от игрока, 
+                    // так как он уже выполнил переворот перед отправкой.
+
                     render();
                     updateUI();
-                    checkGameState(); 
+                    checkGameState();
                 }
             });
 
+            // ... (остальные error_msg и opponent_left) ...
             socket.on('error_msg', (msg) => alert(msg));
             socket.on('opponent_left', () => { alert("Соперник отключился."); location.reload(); });
         }
@@ -159,7 +139,8 @@
             document.getElementById('online-msg').innerText = status;
         };
 
-        window.sendMoveToCloud = (boardState, nextTurn, moveDetails, castlingState, modeState) => {
+        // Добавляем moveCount в отправку данных
+        window.sendMoveToCloud = (boardState, nextTurn, moveDetails, castlingState, modeState, mCount) => {
             if (!socket || !currentRoomId) return;
             socket.emit('make_move', {
                 roomId: currentRoomId,
@@ -167,7 +148,8 @@
                 turn: nextTurn,
                 lastMove: moveDetails,
                 castling: castlingState,
-                mode: modeState || gameMode 
+                mode: modeState || gameMode,
+                moveCount: mCount // <--- ВАЖНО: передаем счетчик
             });
         };
 
@@ -923,24 +905,14 @@
             }
             endTurn(start.r, start.c, mv, moveDetails);
         }
-
         function endTurn(sr, sc, mv, moveDetails) {
-            const nextTurn = turn==='white'?'black':'white';
+            const nextTurn = turn === 'white' ? 'black' : 'white';
 
-
-            // Если moveDetails не передан, пытаемся восстановить из sr, sc, mv
-            if (!moveDetails && typeof sr !== 'undefined') {
-                moveDetails = { from: {r: sr, c: sc}, to: mv };
-            }
-
-            if (window.isOnlineActive()) {
-                window.sendMoveToCloud(board, nextTurn, moveDetails, castling, gameMode);
-            }
-
-            // увеличиваем счетчик ходов
+            // 1. Сначала увеличиваем счетчик
             moveCount++;
 
-            // переворачиваем химеру только раз в два хода
+            // 2. Затем выполняем механику переворота Химеры (если нужно)
+            // Она перевернется и локально, и в массиве board, который уйдет в сеть
             if (moveCount % 2 === 0) {
                 for (let r = 0; r < 8; r++) {
                     for (let c = 0; c < 8; c++) {
@@ -948,52 +920,52 @@
                         else if (board[r][c] === 'X') board[r][c] = 'x';
                     }
                 }
+                // Если была замена, сообщим об этом в лог (опционально)
+                // log("ХИМЕРА: Смена контроля."); 
             }
 
+            // Если moveDetails не передан...
+            if (!moveDetails && typeof sr !== 'undefined') {
+                moveDetails = { from: { r: sr, c: sc }, to: mv };
+            }
 
-
+            // 3. И только ТЕПЕРЬ отправляем финальное состояние
+            if (window.isOnlineActive()) {
+                // Передаем moveCount последним аргументом
+                window.sendMoveToCloud(board, nextTurn, moveDetails, castling, gameMode, moveCount);
+            }
 
             loyalty--;
-            if(loyalty<=0) { 
-                // Вместо простой проверки запускаем AI
-                consultGeminiLoyalty(); 
-                loyalty=3; 
+            if (loyalty <= 0) {
+                consultGeminiLoyalty();
+                loyalty = 3;
             }
+
             turn = nextTurn;
-            selected=null; moves=[];
-            
-            // Сохраняем локально последний ход для анимации
+            selected = null; moves = [];
+
             lastMoveData = moveDetails;
             updateLossCounters();
 
             updateUI(); render();
             updateMoraleUI();
+
             // --- ХОД ИИ ---
             if (aiEnabled && turn === aiColor) {
                 setTimeout(() => {
-                    const before = lastMoveData; // запоминаем, сделал ли ИИ ход
-
+                    const before = lastMoveData;
                     makeAIMove();
-
-                    // если ИИ НЕ сделал ход (например, мат или нет ходов)
-                    // lastMoveData осталось прежним → вызываем проверку состояния
                     setTimeout(() => {
                         if (before === lastMoveData) {
                             checkGameState();
                         }
                     }, 50);
-
                 }, 150);
-
-                return; // важный return
+                return;
             }
 
-            // если ход НЕ ИИ → обычная проверка
             checkGameState();
-
-
         }
-
         let whiteMorale = 10;
         let blackMorale = 10;
 
@@ -1478,105 +1450,32 @@
             return score;
         }
         
+        // === ВСТАВИТЬ ЭТО В КОНЕЦ СКРИПТА (ИЛИ ЗАМЕНИТЬ СТАРЫЕ ВЕРСИИ) ===
 
-        // Оценка конкретного хода
-        function evaluateMove(from, mv, board, color) {
+        // 1. Новая функция: Считает, на сколько очков "горят" наши фигуры прямо сейчас
+        function getGlobalThreatScore(bd, color) {
             let score = 0;
+            const opp = opposite(color);
 
-            const piece = board[from.r][from.c];
-            // --- Король НЕ должен ходить без угрозы ---
-            if (getType(piece) === 'k') {
-                // если королю НЕ угрожают — большой штраф на любое движение
-                if (!isSquareThreatened(board, from.r, from.c, opposite(color))) {
-                    score -= 5;   // король не должен ходить просто так
-                }
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = bd[r][c];
+                    if (!p || getCol(p) !== color) continue;
 
-                // если новая клетка хуже или под ударом — ОГРОМНЫЙ штраф
-                const after = simulateMove(board, from, mv);
-                const attackedK = isSquareThreatened(after, mv.r, mv.c, opposite(color));
-                if (attackedK) {
-                    score -= 999;    // королём ТАК ХОДИТЬ НЕЛЬЗЯ
-                }
-            }
-
-            const target = board[mv.r][mv.c];
-
-            // --- 0: фигура под ударом → спасаемся ---
-            const underAttack = isSquareThreatened(board, from.r, from.c, opposite(color));
-
-            if (underAttack) {
-
-                // если клетка после хода НЕ под боем → СИЛЬНЕЙШИЙ ПРИОРИТЕТ
-                const after = simulateMove(board, from, mv);
-                const attackedNew = isSquareThreatened(after, mv.r, mv.c, opposite(color));
-                const defendedNew = isDefended(after, mv.r, mv.c, color);
-
-                if (!attackedNew) {
-                    score += 1000; // абсолютное лидерство
-                }
-                else if (attackedNew && defendedNew) {
-                    score += 200; // полубезопасное поле — супер важно
+                    // Если фигура под боем - добавляем её стоимость в "индекс опасности"
+                    if (isSquareThreatened(bd, r, c, opp)) {
+                        // Важно: Короля не считаем здесь, для него есть inCheck
+                        // Иначе цифры будут зашкаливать
+                        if (getType(p) !== 'k') {
+                            score += getPieceValue(p);
+                        }
+                    }
                 }
             }
-
-
-            // --- 1: мат / шах
-            const testBoard = simulateMove(board, from, mv);
-            if (inCheck(opposite(color), testBoard)) score += 5;
-
-            // --- 2: обычное взятие
-            if (target) {
-                score += getPieceValue(target) * 1.2;
-            }
-
-            // --- 3: безопасность новой клетки
-            const after = simulateMove(board, from, mv);
-            const attacked = isSquareThreatened(after, mv.r, mv.c, opposite(color));
-            const defended = isDefended(after, mv.r, mv.c, color);
-
-            if (attacked && !defended) {
-                // клетка под ударом и НЕ защищена → плохой ход
-                score -= getPieceValue(piece) * 10;
-            }
-            else if (attacked && defended) {
-                // под боем, но защищено → маленький штраф
-                score -= getPieceValue(piece) * 2;
-            }
-
-
-            // --- 4: развитие
-            if (piece.toLowerCase() === 'n' || piece.toLowerCase() === 'b') {
-                if (from.r === 7 && color === 'black') score += 0.5;
-                if (from.c === 7 && color === 'black') score += 0.3;
-            }
-
-            // --- 5: контроль центра
-            if ([3, 4].includes(mv.r) && [3, 4].includes(mv.c)) score += 0.4;
-
-            // --- 6: штраф за тупой повтор
-            if (lastMoveData &&
-                lastMoveData.from &&
-                lastMoveData.to &&
-                lastMoveData.from.r === mv.r &&
-                lastMoveData.from.c === mv.c &&
-                lastMoveData.to.r === from.r &&
-                lastMoveData.to.c === from.c) {
-                score -= 10;
-            }
-
-            // --- 7: приоритет безопасного взятия незащищённой фигуры ---
-            if (target) {
-                // если цель НЕ защищена — огромный бонус
-                if (!isSquareThreatened(after, mv.r, mv.c, opposite(color))) {
-                    score += getPieceValue(target) * 8;
-                }
-            }
-
             return score;
         }
 
-
-        // НОВЫЙ ИИ (уровень B)
+        // 2. Обновленный мозг ИИ
         function makeAIMove() {
             if (!aiEnabled) return;
             if (window.isOnlineActive()) return;
@@ -1585,17 +1484,20 @@
             let bestScore = -999999;
             let bestMove = null;
 
+            const currentlyInCheck = inCheck(aiColor, board);
+
+            // СЧИТАЕМ ИСХОДНЫЙ УРОВЕНЬ ОПАСНОСТИ
+            // (Например: "Мой ферзь под боем" -> currentDanger = 10)
+            const currentDanger = getGlobalThreatScore(board, aiColor);
+
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
 
                     if (!board[r][c] || getCol(board[r][c]) !== aiColor) continue;
 
-                    // 1 — все возможные ходы
-                    let rawMoves = getMoves(r, c, false)
-                        .filter(m => !m.prop && !m.merge && !m.fuse);
-
-                    // 2 — убираем ходы, которые оставят короля под шахом
+                    let rawMoves = getMoves(r, c, false).filter(m => !m.prop && !m.merge && !m.fuse);
                     let legalMoves = [];
+
                     for (let mv of rawMoves) {
                         const after = simulateMove(board, { r, c }, mv);
                         if (!inCheck(aiColor, after)) legalMoves.push(mv);
@@ -1603,38 +1505,15 @@
 
                     if (legalMoves.length === 0) continue;
 
-                    // 3 — классификация по безопасности
-                    let safeMoves = [];
-                    let semiMoves = [];
-                    let badMoves = [];
-
+                    // Оптимизация: проверяем не все ходы, если их слишком много, но для шахмат 64 клеток это терпимо
                     for (let mv of legalMoves) {
-                        const after = simulateMove(board, { r, c }, mv);
-                        const attacked = isSquareThreatened(after, mv.r, mv.c, opposite(aiColor));
-                        const defended = isDefended(after, mv.r, mv.c, aiColor);
+                        // Передаем currentDanger в оценку
+                        const score = evaluateMove({ r, c }, mv, board, aiColor, currentlyInCheck, currentDanger);
 
-                        if (!attacked) {
-                            safeMoves.push(mv);             // полностью безопасно
-                        }
-                        else if (defended) {
-                            semiMoves.push(mv);             // под боем, но защищено
-                        }
-                        else {
-                            badMoves.push(mv);              // фигуру съедят
-                        }
-                    }
+                        const randomNoise = Math.random() * 0.5; // Небольшой шум для вариативности
 
-                    // 4 — выбираем категорию ПРИОРИТЕТА
-                    let priorityMoves =
-                        safeMoves.length ? safeMoves :
-                            semiMoves.length ? semiMoves :
-                                badMoves;
-
-                    // 5 — оцениваем ТОЛЬКО ходы выбранной категории
-                    for (let mv of priorityMoves) {
-                        const score = evaluateMove({ r, c }, mv, board, aiColor);
-                        if (score > bestScore) {
-                            bestScore = score;
+                        if (score + randomNoise > bestScore) {
+                            bestScore = score + randomNoise;
                             bestMove = { from: { r, c }, to: mv };
                         }
                     }
@@ -1645,7 +1524,71 @@
             executeAImove(bestMove);
         }
 
+        // 3. Обновленная оценка с учетом "Глобальной Защиты"
+        function evaluateMove(from, mv, board, color, isCheckMode, initialDanger) {
+            let score = 0;
+            const piece = board[from.r][from.c];
+            const target = board[mv.r][mv.c];
+            const pieceType = getType(piece);
 
+            // Симулируем будущее
+            const after = simulateMove(board, from, mv);
+
+            // 1. ГЛОБАЛЬНАЯ БЕЗОПАСНОСТЬ (Самое важное изменение)
+            // Считаем опасность на доске ПОСЛЕ хода
+            const futureDanger = getGlobalThreatScore(after, color);
+
+            // Разница: на сколько очков мы уменьшили угрозы своим фигурам?
+            // Если Ферзь (10) был под боем, а стал в безопасности -> diff = 10.
+            // Если Ферзь был под боем, а мы съели угрозу пешкой -> diff = 10.
+            const dangerDiff = initialDanger - futureDanger;
+
+            // Умножаем на коэффициент (например, 2), чтобы спасение фигур было приоритетнее позиционки
+            score += dangerDiff * 2;
+
+
+            // 2. ВЗЯТИЕ (CAPTURE)
+            if (target) {
+                let val = getPieceValue(target);
+
+                // Если берем фигуру, которая создавала угрозу, это уже учтено в dangerDiff,
+                // но само взятие дает +материал.
+                score += val * 1.5;
+
+                // Если съедаем бесплатно (новая клетка не под боем)
+                if (!isSquareThreatened(after, mv.r, mv.c, opposite(color))) {
+                    score += 2;
+                }
+            }
+
+            // 3. БЕЗОПАСНОСТЬ САМОЙ ФИГУРЫ ПОСЛЕ ХОДА
+            const attackedNew = isSquareThreatened(after, mv.r, mv.c, opposite(color));
+            const defendedNew = isDefended(after, mv.r, mv.c, color);
+
+            if (attackedNew) {
+                let lossValue = getPieceValue(piece);
+                // Если размен (защищено), теряем не всё, а только разницу (если есть)
+                if (defendedNew) {
+                    // Если пешка ест ферзя, даже умерев — это выгодно. Штраф маленький.
+                    score -= lossValue * 0.5;
+                } else {
+                    // Зевок фигуры — огромный штраф
+                    score -= lossValue * 2;
+                }
+            }
+
+            // 4. ШАХ СОПЕРНИКУ
+            if (inCheck(opposite(color), after)) score += 3;
+
+            // 5. ЦЕНТР И РАЗВИТИЕ (Мелочи)
+            if ([3, 4].includes(mv.r) && [3, 4].includes(mv.c)) score += 0.5;
+            if (pieceType === 'p' && (color === 'white' ? from.r === 1 : from.r === 6)) score += 1; // Дебют пешками
+
+            // 6. ПАНИКА КОРОЛЯ (Только если реальный мат грозит, иначе пусть стоит)
+            if (pieceType === 'k' && !isCheckMode) score -= 1;
+
+            return score;
+        }
         function getPieceValue(p) {
             if (!p) return 0;
             p = p.toLowerCase();
