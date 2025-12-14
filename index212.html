@@ -933,38 +933,30 @@
         function endTurn(sr, sc, mv, moveDetails) {
             const nextTurn = turn === 'white' ? 'black' : 'white';
 
-            // 1. Увеличиваем счетчик ходов
+            // 1. Сначала увеличиваем счетчик
             moveCount++;
 
-            // 2. === ФИНАЛЬНАЯ ФОРМУЛА ХИМЕРЫ (FIX) ===
-            // Мы используем (moveCount - 1).
-            // Это гарантирует, что цвет меняется ТОЛЬКО после того, как Белые походили второй раз.
-            // Ход 1 (Белые): (1-1)/2 = 0 -> Белая
-            // Ход 2 (Черные): (2-1)/2 = 0.5 -> 0 -> Белая (Белые смогут походить ей на 3-м ходу!)
-            // Ход 3 (Белые): (3-1)/2 = 1 -> Черная
-            // Ход 4 (Черные): (4-1)/2 = 1.5 -> 1 -> Черная (Черные смогут походить ей на 5-м ходу!)
-
-            const chimeraPhase = Math.floor(moveCount / 4) % 2;
-
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const p = board[r][c];
-                    if (p && (p === 'x' || p === 'X')) {
-                        if (chimeraPhase === 0) {
-                            board[r][c] = 'x'; // Фаза Белых
-                        } else {
-                            board[r][c] = 'X'; // Фаза Черных
-                        }
+            // 2. Затем выполняем механику переворота Химеры (если нужно)
+            // Она перевернется и локально, и в массиве board, который уйдет в сеть
+            if (moveCount % 2 === 0) {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        if (board[r][c] === 'x') board[r][c] = 'X';
+                        else if (board[r][c] === 'X') board[r][c] = 'x';
                     }
                 }
+                // Если была замена, сообщим об этом в лог (опционально)
+                // log("ХИМЕРА: Смена контроля."); 
             }
 
+            // Если moveDetails не передан...
             if (!moveDetails && typeof sr !== 'undefined') {
                 moveDetails = { from: { r: sr, c: sc }, to: mv };
             }
 
+            // 3. И только ТЕПЕРЬ отправляем финальное состояние
             if (window.isOnlineActive()) {
+                // Передаем moveCount последним аргументом
                 window.sendMoveToCloud(board, nextTurn, moveDetails, castling, gameMode, moveCount);
             }
 
@@ -983,6 +975,7 @@
             updateUI(); render();
             updateMoraleUI();
 
+            // --- ХОД ИИ ---
             if (aiEnabled && turn === aiColor) {
                 setTimeout(() => {
                     const before = lastMoveData;
@@ -998,9 +991,8 @@
 
             checkGameState();
         }
-
-
-
+        let whiteMorale = 10;
+        let blackMorale = 10;
 
         function consultGeminiLoyalty() {
 
