@@ -3,27 +3,22 @@ const app = express();
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
-const path = require('path'); // Добавили модуль для путей
+const path = require('path');
 
 // Настройка Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*", // Разрешаем всем (для простоты)
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
-// === ВАЖНОЕ ИЗМЕНЕНИЕ 1: Порт ===
-// Хостинги (Render, Heroku и др.) выдают порт через process.env.PORT
 const PORT = process.env.PORT || 3000;
 
-// === ВАЖНОЕ ИЗМЕНЕНИЕ 2: Раздача клиента ===
-// Сервер должен отдавать браузеру ваш HTML файл и картинки (если есть)
 app.use(express.static(__dirname)); 
 
-// При заходе на главную страницу отдаем index212.html
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index212.html'));
+  res.sendFile(path.join(__dirname, 'index520.html')); // Ссылаемся на актуальный файл клиента
 });
 
 // Хранилище игровых комнат
@@ -52,7 +47,12 @@ io.on('connection', (socket) => {
       players: [socket.id],
       board: null,
       turn: 'white',
-      mode: 'classic'
+      mode: 'classic',
+      // === ЭКОНОМИКА ===
+      economy: { white: 0, black: 0 },
+      graveyard: { white: [], black: [] },
+      resHist: { white: [], black: [] },
+      chimeraTracker: {}
     };
     socket.join(roomId);
     socket.emit('game_start', { 
@@ -60,7 +60,11 @@ io.on('connection', (socket) => {
         color: 'white',
         board: getDefaultBoard(),
         turn: 'white',
-        mode: 'classic'
+        mode: 'classic',
+        economy: { white: 0, black: 0 },
+        graveyard: { white: [], black: [] },
+        resHist: { white: [], black: [] },
+        chimeraTracker: {}
     });
     broadcastRoomList();
   });
@@ -71,6 +75,12 @@ io.on('connection', (socket) => {
       socket.emit('error_msg', 'Комната не найдена!');
       return;
     }
+    
+    // Защита: если этот сокет уже в комнате, не добавляем его повторно
+    if (room.players.includes(socket.id)) {
+        return; 
+    }
+
     if (room.players.length >= 2) {
       socket.emit('error_msg', 'Комната полна!');
       return;
@@ -78,29 +88,49 @@ io.on('connection', (socket) => {
     room.players.push(socket.id);
     socket.join(roomId);
     io.to(room.players[0]).emit('player_joined', { roomId });
+    
     socket.emit('game_start', { 
         roomId: roomId, 
         color: 'black',
         board: room.board || getDefaultBoard(),
         turn: room.turn,
-        mode: room.mode || 'classic'
+        mode: room.mode || 'classic',
+        economy: room.economy || { white: 0, black: 0 },
+        graveyard: room.graveyard || { white: [], black: [] },
+        resHist: room.resHist || { white: [], black: [] },
+        chimeraTracker: room.chimeraTracker || {}
     });
     broadcastRoomList();
   });
 
   socket.on('make_move', (data) => {
-    const { roomId, board, turn, lastMove, mode } = data;
+    const { roomId, board, turn, lastMove, mode, moveCount, chimeraTracker, economy, graveyard, resHist } = data;
     const room = rooms[roomId];
     if (room) {
       room.board = board;
       room.turn = turn;
       if (mode) room.mode = mode;
+      if (chimeraTracker) room.chimeraTracker = chimeraTracker;
+      
+      // Сохраняем экономику
+      if (economy) room.economy = economy;
+      if (graveyard) room.graveyard = graveyard;
+      if (resHist) room.resHist = resHist;
+
       io.in(roomId).emit('receive_move', {
         board: board,
         turn: turn,
         lastMove: lastMove,
-        mode: mode
+        mode: mode,
+        moveCount: moveCount,
+        chimeraTracker: chimeraTracker,
+        economy: economy,
+        graveyard: graveyard,
+        resHist: resHist
       });
+    } else {
+        // Если комнаты нет (например, сервер перезагрузился), сообщаем клиенту
+        socket.emit('error_msg', 'Ошибка синхронизации: комната не найдена. Пересоздайте игру.');
     }
   });
 
@@ -112,10 +142,12 @@ io.on('connection', (socket) => {
         if (index !== -1) {
             room.players.splice(index, 1);
             if (room.players.length === 0) {
+                // Если никого не осталось, удаляем комнату
                 delete rooms[id];
             } else {
+                // Если кто-то остался, просто уведомляем его
                 socket.to(id).emit('opponent_left');
-                delete rooms[id]; 
+                // ВАЖНО: Мы НЕ удаляем комнату здесь, чтобы оставшийся игрок не "завис"
             }
             break;
         }
