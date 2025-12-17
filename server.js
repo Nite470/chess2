@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(__dirname)); 
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index520.html')); // Ссылаемся на актуальный файл клиента
+  res.sendFile(path.join(__dirname, 'index212.html')); // Ссылаемся на актуальный файл клиента
 });
 
 // Хранилище игровых комнат
@@ -173,3 +173,4 @@ function getDefaultBoard() {
 server.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
 });
+
