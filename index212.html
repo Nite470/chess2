@@ -9,7 +9,6 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <script>
-        // === НАСТРОЙКИ ===
         const GEMINI_API_KEY = 'AIzaSyDuQ89DuJCXx9kJoS7qFDWaiNqSYf6l1jI';
 
         let socket;
@@ -18,7 +17,6 @@
         let isConnected = false;
 
         function connectToServer() {
-            const serverUrl = window.location.origin;
             const btn = document.getElementById('btn-connect');
             if (btn) {
                 btn.innerText = "Подключение...";
@@ -33,9 +31,6 @@
                 const connPanel = document.getElementById('connection-panel');
                 if (connPanel) connPanel.classList.add('hidden');
                 document.getElementById('lobby-panel').classList.remove('hidden');
-            });
-            socket.on('connect_error', (err) => {
-                console.log("Попытка подключения...", err);
             });
             setupSocketListeners();
         }
@@ -71,34 +66,36 @@
                 log(`Игрок подключился! Комната: ${data.roomId}`);
                 document.getElementById('online-msg').innerText = "Соперник в игре!";
             });
+
             socket.on('game_start', (data) => {
                 myOnlineColor = data.color;
                 currentRoomId = data.roomId;
                 moveCount = 0; 
+                
+                // Применяем данные сразу
                 if(data.economy) economy = data.economy;
                 if(data.graveyard) graveyard = data.graveyard;
                 if(data.resHist) resHist = data.resHist;
+                if(data.chimeraTracker) chimeraTracker = data.chimeraTracker;
 
-                window.syncBoardFromOnline(data.board, data.turn, data.castling, data.chimeraTracker);
+                window.syncBoardFromOnline(data.board, data.turn, data.castling);
                 window.enterOnlineMode(data.roomId, `Вы играете за: ${myOnlineColor === 'white' ? 'БЕЛЫХ' : 'ЧЕРНЫХ'}`);
                 log(`Игра началась! Ваш цвет: ${myOnlineColor.toUpperCase()}`);
             });
 
             socket.on('receive_move', (data) => {
-                if (typeof data.moveCount !== 'undefined') {
-                    moveCount = data.moveCount;
-                }
-                if (data.mode && gameMode !== data.mode) {
-                    gameMode = data.mode;
-                    if (data.mode === 'new_mode') {
-                        kingDead = true;
-                        newModePlayer = data.turn;
-                    }
+                if (typeof data.moveCount !== 'undefined') moveCount = data.moveCount;
+                if (data.mode) gameMode = data.mode;
+                if (data.mode === 'new_mode') {
+                    kingDead = true;
+                    newModePlayer = data.turn;
                 }
 
+                // Обновляем экономику
                 if(data.economy) economy = data.economy;
                 if(data.graveyard) graveyard = data.graveyard;
                 if(data.resHist) resHist = data.resHist;
+                if(data.chimeraTracker) chimeraTracker = data.chimeraTracker;
 
                 document.getElementById('dip-modal').classList.remove('active');
 
@@ -112,7 +109,7 @@
                         log("Получено предложение союза!");
                     }
                 } else {
-                    window.syncBoardFromOnline(data.board, data.turn, data.castling, data.chimeraTracker);
+                    window.syncBoardFromOnline(data.board, data.turn, data.castling);
                     lastMoveData = data.lastMove || null;
                     render();
                     updateUI();
@@ -121,7 +118,11 @@
             });
 
             socket.on('error_msg', (msg) => alert(msg));
-            socket.on('opponent_left', () => { alert("Соперник отключился."); location.reload(); });
+            socket.on('opponent_left', () => { 
+                alert("Соперник отключился."); 
+                // Не перезагружаем страницу принудительно, чтобы не терять лог, но можно сделать рестарт
+                location.reload(); 
+            });
         }
 
         window.hostGame = () => {
@@ -155,6 +156,7 @@
                 castling: castlingState,
                 mode: modeState || gameMode,
                 moveCount: mCount,
+                // ОТПРАВЛЯЕМ ВСЮ ЭКОНОМИКУ
                 chimeraTracker: chimeraTracker,
                 economy: economy,
                 graveyard: graveyard,
@@ -271,7 +273,6 @@
         .piece.archon-light { color: #f6d24a !important; text-shadow: -1px -1px 1px rgba(0,0,0,0.4), 1px -1px 1px rgba(0,0,0,0.4), -1px 1px 1px rgba(0,0,0,0.4), 1px 1px 1px rgba(0,0,0,0.4), 0px 0px 6px rgba(255,215,0,0.7); filter: none; }
         .piece.archon-dark { color: #cc3fd3 !important; text-shadow: -1px -1px 1px rgba(0,0,0,0.5), 1px -1px 1px rgba(0,0,0,0.5), -1px 1px 1px rgba(0,0,0,0.5), 1px 1px 1px rgba(0,0,0,0.5), 0px 0px 6px rgba(66,196,232,0.8); filter: none; }
 
-        /* Стили Магазина */
         .shop-item {
             display: flex; justify-content: space-between; align-items: center;
             padding: 4px 8px; background: #0f172a; border: 1px solid #334155;
@@ -422,7 +423,7 @@
         let whiteMorale = 10;
         let blackMorale = 10;
 
-        // === ПЕРЕМЕННЫЕ ЭКОНОМИКИ ===
+        // === ЭКОНОМИКА ===
         let economy = { white: 0, black: 0 };
         let graveyard = { white: [], black: [] }; 
         let resHist = { white: [], black: [] };   
@@ -442,7 +443,6 @@
             'x': 9, 'X': 9  // Химера обрабатывается отдельно
         };
 
-        // Цена воскрешения
         const REVIVE_COST = {
             'p': 10, 'n': 30, 'b': 30, 'r': 50
         };
@@ -485,11 +485,7 @@
             document.getElementById('mode-display').innerText = gameMode === 'new_mode' ? 'LAST STAND' : 'КЛАССИКА';
             document.getElementById('loyalty').innerText = loyalty;
             
-            // === ЭКОНОМИКА UI (Приватность) ===
             const myColor = window.getOnlineColor();
-            
-            // Если мы наблюдатель или локальная игра - видим все. 
-            // Если онлайн - скрываем чужое.
             const showWhite = !myColor || myColor === 'white';
             const showBlack = !myColor || myColor === 'black';
 
@@ -523,7 +519,6 @@
             loyalty = 3; pendingMove = null; newModePlayer = null;
             lastMoveData = null; moveCount = 0;
 
-            // Сброс экономики
             economy = { white: 0, black: 0 };
             graveyard = { white: [], black: [] };
             resHist = { white: [], black: [] };
@@ -842,23 +837,11 @@
             if (mv.prop) { pendingMove = mv; document.getElementById('dip-modal').classList.add('active'); return; }
 
             // === ОБРАБОТКА ВЗЯТИЯ (ЭКОНОМИКА) ===
-            // Фигура умирает и попадает в кладбище ТОЛЬКО если это не слияние
             const targetP = board[mv.r][mv.c];
-            // Важное исправление: Если это союзное слияние (targetP моего цвета), мы НЕ добавляем его в кладбище.
-            // Если это взятие врага (targetP чужого цвета), добавляем.
             if (targetP) {
                 const tType = getType(targetP);
                 const tCol = getCol(targetP);
-                
-                // Добавляем в кладбище ТОЛЬКО если это вражеская фигура (настоящее убийство)
-                // Если мы объединяемся со своей (mv.merge, mv.fuse), это не смерть.
-                // Если мы создаем Химеру (mv.prop), targetP был врагом, но он "влился" в Химеру (по ТЗ: не считается умершей)
-                
-                const isMerge = (getCol(targetP) === col); // Слияние со своим
-                const isChimeraCreation = (mv.prop || pendingMove); // Создание Химеры (мы уже прошли проверку выше, но логика тут) -> на самом деле creation химеры идет в acceptProp
-
-                // Проверяем: Если это ВРАГ, и это НЕ создание Химеры (потому что химера создается через диалог acceptProp, а здесь обычный ход или атака)
-                // Но стоп, если mv.prop был true, мы сделали return выше. Значит здесь мы либо бьем, либо сливаемся.
+                const isMerge = (getCol(targetP) === col); 
                 
                 if (!isMerge && REVIVE_COST[tType]) {
                     graveyard[tCol].push(tType);
@@ -890,7 +873,16 @@
                     return;
                 }
                 if (type === 'n' && mv.prop === "chimera") {
-                    // Это условие не сработает здесь, так как mv.prop обрабатывается в начале функции
+                    const target = board[mv.r][mv.c];
+                    if (target && getType(target) === 'n' && getCol(target) !== col) {
+                        pendingMove = mv;
+                        pendingMove.from = start;
+                        pendingMove.to = { r: mv.r, c: mv.c };
+                        pendingMove.attackerColor = col;
+                        document.getElementById('dip-modal').classList.add('active');
+                        log("Предложение: создать ХИМЕРУ");
+                        return;
+                    }
                 }
             }
             if (mv.fuse) {
@@ -969,17 +961,9 @@
             }
 
             // === ДОХОД РАЗ В 5 ХОДОВ (РАУНДОВ) ===
-            // moveCount = количество полуходов.
-            // 5 полных ходов = 10 полуходов.
-            // Начисляем доход игроку, который СЕЙЧАС будет ходить, если наступил его "день зарплаты".
-            // Для Белых это ходы 0, 10, 20... (но ход 0 - старт, значит перед ходом 11, 21...)
-            // Для Черных это ходы 1, 11, 21...
-            // Упростим: Каждые 10 полуходов (глобально) - раздача слонов.
-            
+            // 5 полных ходов = 10 полуходов
             if (moveCount > 0 && moveCount % 10 === 0) {
-                // Зарплата Белым
                 economy.white += calculateIncome('white');
-                // Зарплата Черным
                 economy.black += calculateIncome('black');
                 log("💰 ДЕНЬ ЖАЛОВАНИЯ: Оба игрока получили доход!");
             }
@@ -1014,13 +998,6 @@
         function renderGraveyard(myColor) {
             const container = document.getElementById('graveyard-list');
             container.innerHTML = '';
-            
-            // ПРИВАТНОСТЬ: Если мы играем онлайн и сейчас не наш ход (или мы смотрим чужой список), скрываем.
-            // Но логичнее: всегда показывать СВОЙ магазин. Если сейчас ход противника, кнопки неактивны.
-            // А магазин противника скрыт.
-            
-            // Определим, чей магазин рендерить. Рендерим магазин текущего игрока (turn).
-            // Но если myColor != turn, значит мы ждем хода соперника. Мы не должны видеть его магазин.
             
             const isMyTurn = (!myColor) || (myColor === turn);
             
@@ -1083,7 +1060,6 @@
             render();
         }
 
-        // Остальные функции без изменений
         function log(t) { const l = document.getElementById('log'); l.innerHTML = `<div>> ${t}</div>` + l.innerHTML; }
 
         function consultGeminiLoyalty() {
