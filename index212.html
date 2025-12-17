@@ -10,40 +10,40 @@
 
     <script>
         // === НАСТРОЙКИ GEMINI AI ===
-        // Вставлен твой ключ. 
+        // Вставлен твой ключ.
         // Используем модель gemini-1.5-flash для скорости.
-        const GEMINI_API_KEY = 'AIzaSyDuQ89DuJCXx9kJoS7qFDWaiNqSYf6l1jI'; 
+        const GEMINI_API_KEY = 'AIzaSyDuQ89DuJCXx9kJoS7qFDWaiNqSYf6l1jI';
 
         let socket;
         let currentRoomId = null;
         let myOnlineColor = null;
         let isConnected = false;
 
-     // ВАЖНО: Замените старую функцию connectToServer на эту
+        // ВАЖНО: Замените старую функцию connectToServer на эту
         function connectToServer() {
-            // Теперь нам не нужно поле ввода IP. 
+            // Теперь нам не нужно поле ввода IP.
             // Мы подключаемся к тому же адресу, где открыт сайт.
-            const serverUrl = window.location.origin; 
-            
+            const serverUrl = window.location.origin;
+
             const btn = document.getElementById('btn-connect');
-            if(btn) {
+            if (btn) {
                 btn.innerText = "Подключение...";
                 btn.disabled = true;
             }
 
             // Убираем явное указание URL, socket.io сам определит хост
-            socket = io(); 
+            socket = io();
 
             socket.on('connect', () => {
                 isConnected = true;
                 document.getElementById('online-status').innerText = "СЕРВЕР: ПОДКЛЮЧЕН";
                 document.getElementById('online-status').classList.replace('text-gray-500', 'text-emerald-400');
-                if(btn) btn.innerText = "OK";
-                
+                if (btn) btn.innerText = "OK";
+
                 // Скрываем панель ввода IP, она больше не нужна
                 const connPanel = document.getElementById('connection-panel');
-                if(connPanel) connPanel.classList.add('hidden');
-                
+                if (connPanel) connPanel.classList.add('hidden');
+
                 document.getElementById('lobby-panel').classList.remove('hidden');
             });
 
@@ -78,9 +78,9 @@
                         joinGame();
                     };
                     roomBtn.innerHTML = `
-            <span class="text-blue-400 font-mono font-bold group-hover:text-blue-300">#${room.id}</span>
-            <span class="text-gray-400 text-[9px]">Игроков: ${room.count}/2</span>
-        `;
+                <span class="text-blue-400 font-mono font-bold group-hover:text-blue-300">#${room.id}</span>
+                <span class="text-gray-400 text-[9px]">Игроков: ${room.count}/2</span>
+            `;
                     listEl.appendChild(roomBtn);
                 });
             });
@@ -112,6 +112,8 @@
                     }
                 }
 
+                
+
                 document.getElementById('dip-modal').classList.remove('active');
 
                 if (data.lastMove && data.lastMove.proposal) {
@@ -124,12 +126,12 @@
                         log("Получено предложение союза!");
                     }
                 } else {
-                    window.syncBoardFromOnline(data.board, data.turn, data.castling);
+                    window.syncBoardFromOnline(data.board, data.turn, data.castling, data.chimeraTracker);
 
                     lastMoveData = data.lastMove || null;
 
                     // === УДАЛЕНО: ЦИКЛ ПЕРЕВОРОТА ХИМЕРЫ ===
-                    // Мы теперь доверяем доске, пришедшей от игрока, 
+                    // Мы теперь доверяем доске, пришедшей от игрока,
                     // так как он уже выполнил переворот перед отправкой.
 
                     render();
@@ -164,7 +166,6 @@
             document.getElementById('online-msg').innerText = status;
         };
 
-        // Добавляем moveCount в отправку данных
         window.sendMoveToCloud = (boardState, nextTurn, moveDetails, castlingState, modeState, mCount) => {
             if (!socket || !currentRoomId) return;
             socket.emit('make_move', {
@@ -174,7 +175,8 @@
                 lastMove: moveDetails,
                 castling: castlingState,
                 mode: modeState || gameMode,
-                moveCount: mCount // <--- ВАЖНО: передаем счетчик
+                moveCount: mCount,
+                chimeraTracker: chimeraTracker // <--- ДОБАВИЛИ ОТПРАВКУ ТРЕКЕРА
             });
         };
 
@@ -184,14 +186,46 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@400;700&display=swap');
-        :root { --bg: #0f172a; --dark: #1e293b; --light: #475569; --gold: #fbbf24; --blue: #3b82f6; --purp: #d946ef; --red: #ef4444; }
-        body { background: var(--bg); color: #e2e8f0; font-family: 'Roboto Mono', monospace; overflow: hidden; user-select: none; }
-        .title-font { font-family: 'Orbitron', sans-serif; }
-        
-        .board-wrapper { 
-            width: 100%; max-width: 80vh; aspect-ratio: 1; 
-            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); 
-            border: 8px solid #334155; box-shadow: 0 0 50px rgba(0,0,0,0.5); 
+
+        :root {
+            --bg: #0f172a;
+            --dark: #1e293b;
+            --light: #475569;
+            --gold: #fbbf24;
+            --blue: #3b82f6;
+            --purp: #d946ef;
+            --red: #ef4444;
+            /*--orange: #84cae8;*/
+            --orange: #a3d4e8;
+            /*--fiol: #2184ae;*/
+            --fiol: #1c7094;
+            --background: linear-gradient(180deg, #0e0030, #00111d);
+        }
+
+        body {
+            /*background: var(--bg);*/
+            /*background: linear-gradient(180deg, #0e0030, #00111d);*/
+            /*background: linear-gradient(180deg, #1a0055, #001a33);*/
+            background: linear-gradient(180deg, #120038, #001526);
+            color: #e2e8f0;
+            font-family: 'Roboto Mono', monospace;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .title-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .board-wrapper {
+            width: 100%;
+            max-width: 80vh;
+            aspect-ratio: 1;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            border: 8px solid #334155;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
             position: relative; /* Для SVG оверлея */
             transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* Анимация переворота */
         }
@@ -199,23 +233,24 @@
         @keyframes glowPurple {
             0% {
                 stroke-opacity: 1;
-                filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.8));
+                filter: drop-shadow(0 0 6px rgba(170, 80, 247, 0.8));
             }
 
             50% {
                 stroke-opacity: 0.4;
-                filter: drop-shadow(0 0 12px rgba(168, 85, 247, 1));
+                filter: drop-shadow(0 0 14px rgba(170, 80, 247, 1));
             }
 
             100% {
                 stroke-opacity: 1;
-                filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.8));
+                filter: drop-shadow(0 0 6px rgba(170, 80, 255, 0.8));
             }
         }
 
         .last-move-purple {
             animation: glowPurple 1.2s infinite ease-in-out;
         }
+
 
 
         /* Стиль для линии последнего хода */
@@ -225,48 +260,264 @@
         }
 
         /* Класс для перевернутой доски */
-        .board-wrapper.flipped { transform: rotate(180deg); }
-        .board-wrapper.flipped .cell { transform: rotate(180deg); } /* Поворачиваем фигуры обратно */
+        .board-wrapper.flipped {
+            transform: rotate(180deg);
+        }
 
-        .cell { display: flex; justify-content: center; align-items: center; font-size: clamp(1rem, 5vmin, 4rem); cursor: pointer; position: relative; overflow: hidden; transition: transform 0.8s; }
-        .cell.light { background: var(--light); color: #cbd5e0; } .cell.dark { background: var(--dark); color: #94a3b8; }
-        .cell.selected { background: rgba(251, 191, 36, 0.3) !important; box-shadow: inset 0 0 10px var(--gold); } 
-        .cell.check { background: rgba(239, 68, 68, 0.6) !important; }
-        .hint { position: absolute; pointer-events: none; z-index: 20; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-        .move-hint::after { content:''; width: 20%; height: 20%; background: rgba(16, 185, 129, 0.6); border-radius: 50%; }
-        .attack-hint { border: 4px solid rgba(239, 68, 68, 0.6); }
-        .union-hint { border: 4px solid var(--purp); box-shadow: inset 0 0 15px var(--purp); }
-        
+            .board-wrapper.flipped .cell {
+                transform: rotate(180deg);
+            }
+        /* Поворачиваем фигуры обратно */
+
+        .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: clamp(1rem, 5vmin, 4rem);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.8s;
+        }
+
+            .cell.light {
+                background: var(--orange);
+                color: #cbd5e0;
+            }
+
+            .cell.dark {
+                background: var(--fiol);
+                color: #94a3b8;
+            }
+
+            .cell.selected {
+                background: rgba(251, 191, 36, 0.3) !important;
+                box-shadow: inset 0 0 10px var(--gold);
+            }
+
+            .cell.check {
+                background: rgba(239, 68, 68, 0.6) !important;
+            }
+
+        .hint {
+            position: absolute;
+            pointer-events: none;
+            z-index: 20;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .move-hint::after {
+            content: '';
+            width: 20%;
+            height: 20%;
+            background: rgba(16, 185, 129, 0.6);
+            border-radius: 50%;
+        }
+
+        .attack-hint {
+            border: 4px solid rgba(239, 68, 68, 0.6);
+        }
+
+        .union-hint {
+            border: 4px solid var(--purp);
+            box-shadow: inset 0 0 15px var(--purp);
+        }
+
         /* SVG Оверлей для линий хода */
         #svg-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 15;
         }
-        
-        .special-hint { font-size: 0.6em; font-weight: bold; border: 2px solid; background: rgba(0,0,0,0.5); padding: 2px 4px; border-radius: 4px; }
-        .special-hint.fuse { border-color: var(--gold); color: var(--gold); }
-        .special-hint.legion { border-color: var(--blue); color: var(--blue); }
-        .special-hint.union { border-color: var(--purp); color: var(--purp); }
-        .special-hint.castle { border-color: rgb(255, 146, 3); color: white; }
-        .piece { z-index: 10; filter: drop-shadow(0 4px 2px rgba(0,0,0,0.5)); max-width: 90%; max-height: 90%; line-height: 1; transition: transform 0.2s; }
-        .piece:hover { transform: scale(1.1); }
-        .piece.white { color: #f8fafc; text-shadow: 0 0 5px rgba(255,255,255,0.2); }
-        .piece.black { color: #020617; text-shadow: 0 0 2px rgba(255,255,255,0.2); stroke: 1px white; }
-        .piece.archon { color: var(--gold) !important; filter: drop-shadow(0 0 10px var(--gold)); }
-        .piece.legion { color: var(--blue) !important; filter: drop-shadow(0 0 10px var(--blue)); }
-        .piece.chimera { color: var(--purp) !important; filter: drop-shadow(0 0 10px var(--purp)); animation: pulse 2s infinite; }
-        .piece.heavy { color: #f43f5e !important; filter: drop-shadow(0 0 10px #f43f5e); }
-        @keyframes pulse { 0%,100%{filter:drop-shadow(0 0 5px var(--purp));} 50%{filter:drop-shadow(0 0 15px var(--purp));} }
-        .badge { position: absolute; bottom: 1px; right: 1px; font-size: 0.4em; pointer-events: none; font-family: sans-serif; font-weight: bold; }
-        .btn { background: #1e293b; border: 1px solid #475569; padding: 10px; color: white; width: 100%; margin-bottom: 5px; cursor: pointer; transition: 0.2s; font-weight: bold; text-transform: uppercase; font-size: 0.8rem; }
-        .btn:hover { background: #334155; border-color: white; }
-        .btn-primary { background: #1d4ed8; border-color: #3b82f6; }
-        .btn-danger { background: #b91c1c; border-color: #ef4444; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 50; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .modal.active { display: flex; }
-        .stat-box { background: #1e293b; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #334155; }
-        input.dark-input { background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; width: 100%; font-family: monospace; }
-        .piece.archon-light { color: #ffd700 !important; filter: drop-shadow(0 0 10px #ffeb3b); }
-        .piece.archon-dark { color: #00e5ff !important; filter: drop-shadow(0 0 10px #00e5ff); }
+
+        .special-hint {
+            font-size: 0.6em;
+            font-weight: bold;
+            border: 2px solid;
+            background: rgba(0,0,0,0.5);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+            .special-hint.fuse {
+                border-color: var(--gold);
+                color: var(--gold);
+            }
+
+            .special-hint.legion {
+                border-color: var(--blue);
+                color: var(--blue);
+            }
+
+            .special-hint.union {
+                border-color: var(--purp);
+                color: var(--purp);
+            }
+
+            .special-hint.castle {
+                border-color: rgb(255, 146, 3);
+                color: white;
+            }
+
+        .piece {
+            z-index: 10;
+            filter: drop-shadow(0 4px 2px rgba(0,0,0,0.5));
+            max-width: 90%;
+            max-height: 90%;
+            line-height: 1;
+            transition: transform 0.2s;
+        }
+
+            .piece:hover {
+                transform: scale(1.1);
+            }
+
+            /*.piece.white {
+                color: #f8fafc;
+                text-shadow: 0 0 5px rgba(255,255,255,0.2);
+            }*/
+            .piece.white {
+                color: #f8fafc;
+                text-shadow: -1px -1px 1px rgba(0,0,0,0.5), 1px -1px 1px rgba(0,0,0,0.5), -1px 1px 1px rgba(0,0,0,0.5), 1px 1px 1px rgba(0,0,0,0.5), 0px 0px 4px rgba(0,0,0,0.6);
+            }
+
+
+
+            .piece.black {
+                color: #0a0a0a;
+                text-shadow: 0 0 2px white, 0 0 4px rgba(255,255,255,0.8), 0 0 6px rgba(0,0,0,0.5);
+            }
+
+           /*
+            .piece.black {
+                color: #0a0a0a;
+                text-shadow: -1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff, 0 0 4px rgba(0,0,0,0.6);
+            }*/
+
+            .piece.archon {
+                color: var(--gold) !important;
+                filter: drop-shadow(0 0 10px var(--gold));
+            }
+
+            .piece.legion {
+                color: #ff7c00 !important;
+                text-shadow: -1px -1px 1px rgba(0,0,0,0.65), 1px -1px 1px rgba(0,0,0,0.65), -1px 1px 1px rgba(0,0,0,0.65), 1px 1px 1px rgba(0,0,0,0.65), 0px 0px 6px rgba(59,130,246,0.85), 0px 0px 10px rgba(59,130,246,0.55);
+                filter: none;
+            }
+
+            .piece.chimera {
+                color: var(--purp) !important;
+                filter: drop-shadow(0 0 10px var(--purp));
+                animation: pulse 2s infinite;
+            }
+
+            .piece.heavy {
+                color: #f43f5e !important;
+                filter: drop-shadow(0 0 10px #f43f5e);
+            }
+
+        @keyframes pulse {
+            0%,100% {
+                filter: drop-shadow(0 0 5px var(--purp));
+            }
+
+            50% {
+                filter: drop-shadow(0 0 15px var(--purp));
+            }
+        }
+
+        .badge {
+            position: absolute;
+            bottom: 1px;
+            right: 1px;
+            font-size: 0.4em;
+            pointer-events: none;
+            font-family: sans-serif;
+            font-weight: bold;
+        }
+
+        .btn {
+            background: #1e293b;
+            border: 1px solid #475569;
+            padding: 10px;
+            color: white;
+            width: 100%;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+            .btn:hover {
+                background: #334155;
+                border-color: white;
+            }
+
+        .btn-primary {
+            background: #1d4ed8;
+            border-color: #3b82f6;
+        }
+
+        .btn-danger {
+            background: #b91c1c;
+            border-color: #ef4444;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+            .modal.active {
+                display: flex;
+            }
+
+        .stat-box {
+            background: #1e293b;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #334155;
+        }
+
+        input.dark-input {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            padding: 8px;
+            width: 100%;
+            font-family: monospace;
+        }
+
+        .piece.archon-light {
+            color: #f6d24a !important; /* более мягкое золото */
+            text-shadow: -1px -1px 1px rgba(0,0,0,0.4), 1px -1px 1px rgba(0,0,0,0.4), -1px 1px 1px rgba(0,0,0,0.4), 1px 1px 1px rgba(0,0,0,0.4), 0px 0px 6px rgba(255,215,0,0.7);
+            filter: none; /* отключаем старое кислотное свечение */
+        }
+
+
+        .piece.archon-dark {
+            color: #cc3fd3 !important; /* премиальный лазурный */
+            text-shadow: -1px -1px 1px rgba(0,0,0,0.5), 1px -1px 1px rgba(0,0,0,0.5), -1px 1px 1px rgba(0,0,0,0.5), 1px 1px 1px rgba(0,0,0,0.5), 0px 0px 6px rgba(66,196,232,0.8);
+            filter: none;
+        }
+
         /* === МОБИЛЬНАЯ АДАПТАЦИЯ === */
         @media (max-width: 700px) {
 
@@ -311,7 +562,6 @@
                 max-height: 150px;
             }
         }
-
     </style>
 </head>
 <body class="flex flex-col md:flex-row h-screen">
@@ -383,7 +633,7 @@
 
     </div>
 
-    <div class="flex-1 flex items-center justify-center bg-[#000000] p-4 relative overflow-hidden">
+    <div class="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
         <div class="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900 via-gray-900 to-black pointer-events-none"></div>
         <div id="board" class="board-wrapper shadow-2xl relative z-10">
             <!-- SVG для рисования линии -->
@@ -421,10 +671,11 @@
     </div>
 
     <script>
-        const GP = { k:'♔', q:'♕', r:'♖', b:'♗', n:'♘', p:'♙', a:'♖', c:'♖', h:'♞', x:'♞', z:'♕', K:'♚', Q:'♛', R:'♜', B:'♝', N:'♞', P:'♟', A:'♜', C:'♜', H:'♘', X:'♘', Z:'♛' };
-        
-        let board=[], turn='white', selected=null, moves=[], gameMode='classic';
-        let kingDead=false, loyalty=3, pendingMove=null;
+        const GP = { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙', a: '♖', c: '♖', h: '♞', x: '♞', z: '♕', K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟', A: '♜', C: '♜', H: '♘', X: '♘', Z: '♛' };
+
+        let board = [], turn = 'white', selected = null, moves = [], gameMode = 'classic';
+        let chimeraTracker = {}; // Формат: { "row,col": count }
+        let kingDead = false, loyalty = 3, pendingMove = null;
         let newModePlayer = null;
         let whiteRevived = false;
         let blackRevived = false;
@@ -433,7 +684,7 @@
         let aiEnabled = false;  // режим игры против ИИ
         let aiColor = 'black';  // за кого будет играть ИИ
 
-        
+
         let castling = {
             white: { k: true, l: true, r: true },
             black: { k: true, l: true, r: true }
@@ -519,37 +770,38 @@
 
         function initGame() {
             board = [];
-            const r1 = ['r','n','b','q','k','b','n','r'];
-            const R1 = ['R','N','B','Q','K','B','N','R'];
-            for(let i=0;i<8;i++) {
-                if(i===0) board.push([...R1]);
-                else if(i===1) board.push(Array(8).fill('P'));
-                else if(i===6) board.push(Array(8).fill('p'));
-                else if(i===7) board.push([...r1]);
+            const r1 = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
+            const R1 = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
+            for (let i = 0; i < 8; i++) {
+                if (i === 0) board.push([...R1]);
+                else if (i === 1) board.push(Array(8).fill('P'));
+                else if (i === 6) board.push(Array(8).fill('p'));
+                else if (i === 7) board.push([...r1]);
                 else board.push(Array(8).fill(null));
             }
-            turn='white'; selected=null; moves=[]; gameMode='classic'; kingDead=false;
-            loyalty=3; pendingMove=null; newModePlayer=null;
+            chimeraTracker = {};
+            turn = 'white'; selected = null; moves = []; gameMode = 'classic'; kingDead = false;
+            loyalty = 3; pendingMove = null; newModePlayer = null;
             lastMoveData = null;
-            
+
             castling = { white: { k: true, l: true, r: true }, black: { k: true, l: true, r: true } };
-            
+
             document.getElementById('end-modal').classList.remove('active');
             document.getElementById('dip-modal').classList.remove('active');
             render(); updateUI();
             log("Новая партия началась.");
         }
 
-        const getCol = (p) => { if(!p)return null; return p===p.toUpperCase()?'black':'white'; };
-        const getType = (p) => p?p.toLowerCase():null;
-        const onBd = (r,c) => r>=0&&r<8&&c>=0&&c<8;
-        const isLight = (r,c) => (r+c)%2===0;
-        
+        const getCol = (p) => { if (!p) return null; return p === p.toUpperCase() ? 'black' : 'white'; };
+        const getType = (p) => p ? p.toLowerCase() : null;
+        const onBd = (r, c) => r >= 0 && r < 8 && c >= 0 && c < 8;
+        const isLight = (r, c) => (r + c) % 2 === 0;
+
         function isAttacked(r, c, attackerCol) {
             const tempBoard = board.map(row => [...row]);
             const myCol = attackerCol === 'white' ? 'black' : 'white';
             const oldVal = tempBoard[r][c];
-            tempBoard[r][c] = myCol === 'white' ? 'k' : 'K'; 
+            tempBoard[r][c] = myCol === 'white' ? 'k' : 'K';
             const check = inCheck(myCol, tempBoard);
             tempBoard[r][c] = oldVal;
             return check;
@@ -562,22 +814,22 @@
             const col = getCol(p), type = getType(p);
             const m = [];
 
-            const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
-            const kn = [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]];
-            const bigKn = [[4,1],[4,-1],[-4,1],[-4,-1],[1,4],[1,-4],[-1,4],[-1,-4]];
+            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+            const kn = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
+            const bigKn = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
 
             // 1. Pawn
             if (type === 'p') {
                 const d = col === 'white' ? -1 : 1;
                 const start = col === 'white' ? 6 : 1;
 
-                if (onBd(r+d, c) && !board[r+d][c]) {
-                    m.push({r: r+d, c});
-                    if (r === start && !board[r+d*2][c]) m.push({r: r+d*2, c});
+                if (onBd(r + d, c) && !board[r + d][c]) {
+                    m.push({ r: r + d, c });
+                    if (r === start && !board[r + d * 2][c]) m.push({ r: r + d * 2, c });
                 }
-                [[d,1],[d,-1]].forEach(([dr,dc]) => {
-                    if (onBd(r+dr, c+dc)) {
-                        const t = board[r+dr][c+dc];
+                [[d, 1], [d, -1]].forEach(([dr, dc]) => {
+                    if (onBd(r + dr, c + dc)) {
+                        const t = board[r + dr][c + dc];
                         if (t && getCol(t) !== col) {
                             m.push({ r: r + dr, c: c + dc, atk: true });
                         }
@@ -587,20 +839,20 @@
             }
 
             // 2. Sliding Pieces (Rook, Bishop, Queen, Archon)
-            if (['r','b','q','a','c'].includes(type)) {
+            if (['r', 'b', 'q', 'a', 'c'].includes(type)) {
                 let myDirs = [];
-                if (type === 'r' || type === 'q') myDirs.push(...dirs.slice(0,4));
+                if (type === 'r' || type === 'q') myDirs.push(...dirs.slice(0, 4));
                 if (type === 'b' || type === 'q') myDirs.push(...dirs.slice(4));
 
                 if (type === 'a' || type === 'c') {
-                    myDirs = [...dirs.slice(0,4)];
-                    const okDiag = (type==='a' && isLight(r,c)) || (type==='c' && !isLight(r,c));
+                    myDirs = [...dirs.slice(0, 4)];
+                    const okDiag = (type === 'a' && isLight(r, c)) || (type === 'c' && !isLight(r, c));
                     if (okDiag) myDirs.push(...dirs.slice(4));
                 }
 
-                myDirs.forEach(([dr,dc]) => {
+                myDirs.forEach(([dr, dc]) => {
                     let tr = r + dr, tc = c + dc;
-                    while (onBd(tr,tc)) {
+                    while (onBd(tr, tc)) {
                         const t = board[tr][tc];
                         if (t && getCol(t) === col) {
                             if (type === 'r' && getType(t) === 'b') m.push({ r: tr, c: tc, fuse: true });
@@ -614,32 +866,32 @@
             }
 
             // 3. Knights, Legion, Chimera
-            if (['n','h','x'].includes(type)) {
-                const col = getCol(p);  
+            if (['n', 'h', 'x'].includes(type)) {
+                const col = getCol(p);
                 function addKnightMove(r2, c2) {
-                    if (!onBd(r2,c2)) return;
+                    if (!onBd(r2, c2)) return;
                     const t = board[r2][c2];
-                    if (type === 'n' && t && getType(t)==='n' && getCol(t)!==col) {
-                        m.push({ r:r2, c:c2, atk:true, prop:"chimera" });
+                    if (type === 'n' && t && getType(t) === 'n' && getCol(t) !== col) {
+                        m.push({ r: r2, c: c2, atk: true, prop: "chimera" });
                         return;
                     }
-                    if (!t || getCol(t) !== col) { m.push({ r:r2, c:c2, atk:!!t }); }
-                    if (type === 'n' && t && getCol(t)===col && getType(t)==='n') { m.push({ r:r2, c:c2, merge:true }); }
+                    if (!t || getCol(t) !== col) { m.push({ r: r2, c: c2, atk: !!t }); }
+                    if (type === 'n' && t && getCol(t) === col && getType(t) === 'n') { m.push({ r: r2, c: c2, merge: true }); }
                 }
-                if (type === 'n' || type === 'x') { for (const [dr,dc] of kn) addKnightMove(r+dr, c+dc); }
-                if (type === 'h' || type === 'x') { for (const [dr,dc] of bigKn) addKnightMove(r+dr, c+dc); }
+                if (type === 'n' || type === 'x') { for (const [dr, dc] of kn) addKnightMove(r + dr, c + dc); }
+                if (type === 'h' || type === 'x') { for (const [dr, dc] of bigKn) addKnightMove(r + dr, c + dc); }
             }
 
             // 4. King AND New "Heavy Queen" (z)
             if (type === 'k' || type === 'z') {
-                dirs.forEach(([dr,dc]) => {
-                    if (onBd(r+dr,c+dc)) {
-                        const t = board[r+dr][c+dc];
+                dirs.forEach(([dr, dc]) => {
+                    if (onBd(r + dr, c + dc)) {
+                        const t = board[r + dr][c + dc];
                         if (!t || getCol(t) !== col)
-                            m.push({r:r+dr,c:c+dc, atk:!!t});
+                            m.push({ r: r + dr, c: c + dc, atk: !!t });
                     }
                 });
-                
+
                 if (safe && type === 'k') {
                     const row = (col === 'white' ? 7 : 0);
                     if (!inCheck(col, board)) {
@@ -668,7 +920,7 @@
                 if (targetP) {
                     const tType = getType(targetP);
                     const tCol = getCol(targetP);
-                    if (tType === 'k') continue; 
+                    if (tType === 'k') continue;
                     if (gameMode === 'new_mode' && tType === 'z' && tCol === newModePlayer) continue;
                 }
                 finalMoves.push(mv);
@@ -714,65 +966,83 @@
             }
 
             // 2. Knights etc...
-            const knightSmall = [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]];
-            for (let [dr,dc] of knightSmall) {
+            const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
+            for (let [dr, dc] of knightSmall) {
                 const r = kr + dr, c = kc + dc;
-                if (r>=0&&r<8&&c>=0&&c<8) {
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
                     const p = bd[r][c];
-                    if (p && getCol(p)===opp && getType(p)==='n') return true;
+                    if (p && getCol(p) === opp && getType(p) === 'n') return true;
                 }
             }
-            const knightLarge = [[4,1],[4,-1],[-4,1],[-4,-1],[1,4],[1,-4],[-1,4],[-1,-4]];
-            for (let [dr,dc] of knightLarge) {
+            const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
+            for (let [dr, dc] of knightLarge) {
                 const r = kr + dr, c = kc + dc;
-                if (r>=0&&r<8&&c>=0&&c<8) {
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
                     const p = bd[r][c];
-                    if (p && getCol(p)===opp && getType(p)==='h') return true;
+                    if (p && getCol(p) === opp && getType(p) === 'h') return true;
                 }
             }
-            for (let [dr,dc] of [...knightSmall, ...knightLarge]) {
+            for (let [dr, dc] of [...knightSmall, ...knightLarge]) {
                 const r = kr + dr, c = kc + dc;
-                if (r>=0&&r<8&&c>=0&&c<8) {
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
                     const p = bd[r][c];
-                    if (p && getCol(p)===opp && getType(p)==='x') return true;
+                    if (p && getCol(p) === opp && getType(p) === 'x') return true;
                 }
             }
 
-            const rookDirs = [[0,1],[0,-1],[1,0],[-1,0]];
-            for (let [dr,dc] of rookDirs) {
-                let r=kr+dr, c=kc+dc;
-                while (r>=0&&r<8&&c>=0&&c<8) {
+            const rookDirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (let [dr, dc] of rookDirs) {
+                let r = kr + dr, c = kc + dc;
+                while (r >= 0 && r < 8 && c >= 0 && c < 8) {
                     const p = bd[r][c];
                     if (p) {
                         const t = getType(p);
-                        if (getCol(p)===opp && (t==='r' || t==='q' || t==='z' || t==='a' || t==='c')) return true;
+                        if (getCol(p) === opp && (t === 'r' || t === 'q' || t === 'z' || t === 'a' || t === 'c')) return true;
                         break;
                     }
-                    r+=dr; c+=dc;
+                    r += dr; c += dc;
                 }
             }
 
-            const diagDirs = [[1,1],[1,-1],[-1,1],[-1,-1]];
-            for (let [dr,dc] of diagDirs) {
-                let r=kr+dr, c=kc+dc;
-                while (r>=0&&r<8&&c>=0&&c<8) {
+            const diagDirs = [[1,1], [1,-1], [-1,1], [-1,-1]];
+            for (let [dr, dc] of diagDirs) {
+                let r = kr + dr, c = kc + dc;
+
+                while (r >= 0 && r < 8 && c >= 0 && c < 8) {
                     const p = bd[r][c];
                     if (p) {
                         const t = getType(p);
-                        if (getCol(p)===opp && (t==='b' || t==='q' || t==='z' || t==='a' || t==='c')) return true;
+
+                        // Проверяем нападение только если фигура ВРАЖЕСКАЯ
+                        if (getCol(p) === opp) {
+
+                            // Слон / ферзь / лидер Z
+                            if (t === 'b' || t === 'q' || t === 'z') return true;
+
+                            // Белопольный архонт атакует диагональю, только если находится на светлой клетке
+                            if (t === 'a' && isLight(r,c)) return true;
+
+                            // Чернопольный архонт атакует диагональю, только если стоит на тёмной клетке
+                            if (t === 'c' && !isLight(r,c)) return true;
+                        }
+
+                        // НЕ ВРАЖЕСКАЯ фигура — просто блокирует линию
                         break;
                     }
-                    r+=dr; c+=dc;
+
+                    r += dr;
+                    c += dc;
                 }
             }
 
-            for (let dr of [-1,0,1]) {
-                for (let dc of [-1,0,1]) {
-                    if (dr===0 && dc===0) continue;
+
+            for (let dr of [-1, 0, 1]) {
+                for (let dc of [-1, 0, 1]) {
+                    if (dr === 0 && dc === 0) continue;
                     const r = kr + dr, c = kc + dc;
-                    if (r>=0&&r<8&&c>=0&&c<8) {
+                    if (r >= 0 && r < 8 && c >= 0 && c < 8) {
                         const p = bd[r][c];
-                        if (p && getCol(p)===opp && getType(p)==='k') return true;
+                        if (p && getCol(p) === opp && getType(p) === 'k') return true;
                     }
                 }
             }
@@ -835,15 +1105,15 @@
 
 
         function clickCell(r, c) {
-            if(window.isOnlineActive() && window.getOnlineColor() && turn!==window.getOnlineColor()) return;
-            if(selected) {
-                const mv = moves.find(m=>m.r===r && m.c===c);
-                if(mv) { doMove(mv); return; }
+            if (window.isOnlineActive() && window.getOnlineColor() && turn !== window.getOnlineColor()) return;
+            if (selected) {
+                const mv = moves.find(m => m.r === r && m.c === c);
+                if (mv) { doMove(mv); return; }
             }
-            if(board[r][c] && getCol(board[r][c])===turn) {
-                if(window.isOnlineActive() && window.getOnlineColor() && getCol(board[r][c])!==window.getOnlineColor()) return;
-                selected = {r,c}; moves = getMoves(r,c); render();
-            } else { selected=null; moves=[]; render(); }
+            if (board[r][c] && getCol(board[r][c]) === turn) {
+                if (window.isOnlineActive() && window.getOnlineColor() && getCol(board[r][c]) !== window.getOnlineColor()) return;
+                selected = { r, c }; moves = getMoves(r, c); render();
+            } else { selected = null; moves = []; render(); }
         }
 
         function doMove(mv) {
@@ -853,23 +1123,39 @@
             const col = getCol(p);
 
             // Сохраняем ход для отправки
-            const moveDetails = { 
-                from: start, 
-                to: mv, 
-                proposal: !!mv.prop 
+            const moveDetails = {
+                from: start,
+                to: mv,
+                proposal: !!mv.prop
             };
 
-            if(mv.prop && window.isOnlineActive()) {
+            if (mv.prop && window.isOnlineActive()) {
                 window.sendMoveToCloud(board, turn, moveDetails, castling, gameMode);
                 log("Предложение союза отправлено...");
                 selected = null; moves = []; render();
-                return; 
+                return;
             }
-            if(mv.prop) { pendingMove = mv; document.getElementById('dip-modal').classList.add('active'); return; }
+            if (mv.prop) { pendingMove = mv; document.getElementById('dip-modal').classList.add('active'); return; }
+            // 1. Если на целевой клетке стоит кто-то, удаляем его запись из трекера (вдруг там стояла другая Химера)
+            const targetKey = `${mv.r},${mv.c}`;
+            if (chimeraTracker[targetKey] !== undefined) {
+                delete chimeraTracker[targetKey];
+            }
 
+            // 2. Если ходит сама ХИМЕРА, переносим её счетчик на новые координаты
+            if (getType(p) === 'x') {
+                const startKey = `${start.r},${start.c}`;
+                if (chimeraTracker[startKey] !== undefined) {
+                    chimeraTracker[targetKey] = chimeraTracker[startKey]; // Переносим значение
+                    delete chimeraTracker[startKey]; // Удаляем со старой клетки
+                } else {
+                    // Если вдруг трекера не было (баг), создаем
+                    chimeraTracker[targetKey] = 0;
+                }
+            }
             if (type === 'k') castling[turn].k = false;
             if (type === 'r') {
-                const row = turn==='white'?7:0;
+                const row = turn === 'white' ? 7 : 0;
                 if (start.r === row && start.c === 0) castling[turn].l = false;
                 if (start.r === row && start.c === 7) castling[turn].r = false;
             }
@@ -884,7 +1170,7 @@
                 }
                 if (type === 'n' && mv.prop === "chimera") {
                     const target = board[mv.r][mv.c];
-                    if (target && getType(target)==='n' && getCol(target)!==col) {
+                    if (target && getType(target) === 'n' && getCol(target) !== col) {
                         pendingMove = mv;
                         pendingMove.from = start;
                         pendingMove.to = { r: mv.r, c: mv.c };
@@ -896,35 +1182,35 @@
                 }
             }
 
-            if(mv.fuse) {
-                const isL = isLight(start.r, start.c); 
-                const code = turn==='white'?(isL?'a':'c'):(isL?'A':'C');
+            if (mv.fuse) {
+                const isL = isLight(start.r, start.c);
+                const code = turn === 'white' ? (isL ? 'a' : 'c') : (isL ? 'A' : 'C');
                 board[mv.r][mv.c] = code;
                 board[start.r][start.c] = null;
                 log('СЛИЯНИЕ: Канцлер создан.');
             }
-            else if(mv.castle) {
+            else if (mv.castle) {
                 board[mv.r][mv.c] = p;
                 board[start.r][start.c] = null;
-                castling[turn].k = false; 
-                const row = turn==='white'?7:0;
+                castling[turn].k = false;
+                const row = turn === 'white' ? 7 : 0;
                 if (mv.castle === 'short') {
-                    board[row][5] = board[row][7]; 
+                    board[row][5] = board[row][7];
                     board[row][7] = null;
                 } else {
-                    board[row][3] = board[row][0]; 
+                    board[row][3] = board[row][0];
                     board[row][0] = null;
                 }
                 log('РОКИРОВКА!');
             } else {
                 board[mv.r][mv.c] = p;
                 board[start.r][start.c] = null;
-                if(type==='p' && (mv.r===0||mv.r===7)) {
+                if (type === 'p' && (mv.r === 0 || mv.r === 7)) {
                     if (gameMode === 'new_mode') {
-                        board[mv.r][mv.c] = turn==='white'?'q':'Q';
+                        board[mv.r][mv.c] = turn === 'white' ? 'q' : 'Q';
                         log("ПРОМОУШН: Создан Ферзь.");
                     } else {
-                        board[mv.r][mv.c] = turn==='white'?'q':'Q';
+                        board[mv.r][mv.c] = turn === 'white' ? 'q' : 'Q';
                     }
                 }
             }
@@ -938,16 +1224,39 @@
 
             // 2. Затем выполняем механику переворота Химеры (если нужно)
             // Она перевернется и локально, и в массиве board, который уйдет в сеть
-            if (moveCount % 2 === 0) {
-                for (let r = 0; r < 8; r++) {
-                    for (let c = 0; c < 8; c++) {
-                        if (board[r][c] === 'x') board[r][c] = 'X';
-                        else if (board[r][c] === 'X') board[r][c] = 'x';
+            // === НОВАЯ ЛОГИКА ХИМЕРЫ ===
+            // Мы проверяем только те Химеры, чей владелец только что завершил ход.
+            const justFinishedPlayer = turn; // Игрок, который только что сходил (перед сменой turn)
+
+            // Проходимся по всем записям трекера
+            for (const key in chimeraTracker) {
+                const [r, c] = key.split(',').map(Number);
+                const p = board[r][c];
+
+                // Проверка: действительно ли там стоит Химера?
+                if (p && getType(p) === 'x') {
+                    const owner = getCol(p);
+
+                    // Если Химера принадлежит игроку, который только что сделал ход
+                    if (owner === justFinishedPlayer) {
+                        chimeraTracker[key]++; // Увеличиваем счетчик использования
+
+                        // Если владелец походил 2 раза (или больше)
+                        if (chimeraTracker[key] >= 2) {
+                            // МЕНЯЕМ ЦВЕТ
+                            const newType = (p === 'x') ? 'X' : 'x'; // Меняем регистр (цвет)
+                            board[r][c] = newType;
+                            chimeraTracker[key] = 0; // Сбрасываем счетчик для нового владельца
+
+                            log(`ХИМЕРА на ${String.fromCharCode(97 + c)}${8 - r} сменила лояльность!`);
+                        }
                     }
+                } else {
+                    // Мусор в трекере (фигуры нет, а запись осталась) - чистим
+                    delete chimeraTracker[key];
                 }
-                // Если была замена, сообщим об этом в лог (опционально)
-                // log("ХИМЕРА: Смена контроля."); 
             }
+            // === КОНЕЦ НОВОЙ ЛОГИКИ ===
 
             // Если moveDetails не передан...
             if (!moveDetails && typeof sr !== 'undefined') {
@@ -1115,19 +1424,33 @@
             const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
             for (let [dr, dc] of diagDirs) {
                 let rr = r + dr, cc = c + dc;
+
                 while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
                     let p = bd[rr][cc];
+
                     if (p) {
                         if (getCol(p) === byColor) {
                             let t = getType(p);
-                            if (t === 'b' || t === 'q' || t === 'z' || t === 'a' || t === 'c')
-                                return true;
+
+                            // слон / ферзь / z — нормальная диагональная угроза
+                            if (t === 'b' || t === 'q' || t === 'z') return true;
+
+                            // A архонт: бьёт диагональю только если находится на светлой клетке
+                            if (t === 'a' && isLight(rr, cc)) return true;
+
+                            // C архонт: бьёт диагональю только если находится на тёмной клетке
+                            if (t === 'c' && !isLight(rr, cc)) return true;
                         }
+
+                        // Любая фигура — блокирует дальше
                         break;
                     }
-                    rr += dr; cc += dc;
+
+                    rr += dr;
+                    cc += dc;
                 }
             }
+
 
             // --- 5. Король ---
             for (let dr of [-1, 0, 1]) {
@@ -1147,22 +1470,22 @@
 
         function checkLoyaltyLocal(wLoss, bLoss) {
             const lossDiff = wLoss - bLoss;
-            for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+            for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) {
                 const p = board[r][c];
-                if(p && getType(p)==='p') {
+                if (p && getType(p) === 'p') {
                     // Простейшая проверка на "изоляцию" (нет соседей по бокам)
                     let isolated = true;
                     for (let dc of [-1, 1]) {
-                        if (onBd(r, c+dc) && board[r][c+dc] && getCol(board[r][c+dc]) === getCol(p)) isolated = false;
+                        if (onBd(r, c + dc) && board[r][c + dc] && getCol(board[r][c + dc]) === getCol(p)) isolated = false;
                     }
 
                     let chance = 0.1;
                     if (isolated) chance += 0.2;
 
-                    if(getCol(p)==='white' && lossDiff >= 2 && Math.random() < chance) {
+                    if (getCol(p) === 'white' && lossDiff >= 2 && Math.random() < chance) {
                         board[r][c] = 'P'; log('ИЗМЕНА! Белая пешка перешла к черным.');
                     }
-                    if(getCol(p)==='black' && lossDiff <= -2 && Math.random() < chance) {
+                    if (getCol(p) === 'black' && lossDiff <= -2 && Math.random() < chance) {
                         board[r][c] = 'p'; log('ИЗМЕНА! Черная пешка перешла к белым.');
                     }
                 }
@@ -1182,62 +1505,70 @@
             kingDead = true;
 
             document.getElementById('end-modal').classList.remove('active');
-            
-            let legions=0, archons=0;
-            for(let r=0;r<8;r++)for(let c=0;c<8;c++){
-                const p=board[r][c];
-                if(p && getCol(p)===player) {
-                    if(['h','x'].includes(getType(p))) legions++;
-                    if(['a','c'].includes(getType(p))) archons++;
+
+            let legions = 0, archons = 0;
+            for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) {
+                const p = board[r][c];
+                if (p && getCol(p) === player) {
+                    if (['h', 'x'].includes(getType(p))) legions++;
+                    if (['a', 'c'].includes(getType(p))) archons++;
                 }
             }
-            for(let r=0;r<8;r++)for(let c=0;c<8;c++) if(board[r][c]&&getCol(board[r][c])===player) board[r][c]=null;
-            
-            const baseR = player==='white'?7:0, pawnR = player==='white'?6:1;
-            const r1 = player==='white'?['r','n','b','q','k','b','n','r']:['R','N','B','Q','K','B','N','R'];
-            board[baseR] = [...r1]; board[pawnR] = Array(8).fill(player==='white'?'p':'P');
-            
-            for(let c=0;c<8;c++){
+            for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) if (board[r][c] && getCol(board[r][c]) === player) board[r][c] = null;
+
+            const baseR = player === 'white' ? 7 : 0, pawnR = player === 'white' ? 6 : 1;
+            const r1 = player === 'white' ? ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'] : ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
+            board[baseR] = [...r1]; board[pawnR] = Array(8).fill(player === 'white' ? 'p' : 'P');
+
+            for (let c = 0; c < 8; c++) {
                 const p = board[baseR][c];
-                if(getType(p)==='n' && legions>0) { board[baseR][c]=player==='white'?'h':'H'; legions--; }
-                if(getType(p)==='r' && archons>0) { 
+                if (getType(p) === 'n' && legions > 0) { board[baseR][c] = player === 'white' ? 'h' : 'H'; legions--; }
+                if (getType(p) === 'r' && archons > 0) {
                     const isL = isLight(baseR, c);
-                    board[baseR][c]=player==='white'?(isL?'a':'c'):(isL?'A':'C'); 
-                    archons--; 
+                    board[baseR][c] = player === 'white' ? (isL ? 'a' : 'c') : (isL ? 'A' : 'C');
+                    archons--;
                 }
             }
-            board[baseR][4] = null; 
-            board[baseR][3] = player==='white'?'z':'Z';
+            board[baseR][4] = null;
+            board[baseR][3] = player === 'white' ? 'z' : 'Z';
 
             log("НОВЫЙ РЕЖИМ! Король мертв. Ферзь (Z) — Лидер.");
-            
-            if(window.isOnlineActive()) window.sendMoveToCloud(board, turn, {}, castling, gameMode);
+
+            if (window.isOnlineActive()) window.sendMoveToCloud(board, turn, {}, castling, gameMode);
             render();
         };
-
         window.acceptProp = () => {
             document.getElementById('dip-modal').classList.remove('active');
-            const code = turn==='white'?'x':'X';
+
+            // Определяем цвет новой Химеры (она принадлежит тому, чьего коня съели, то есть противнику ходившего)
+            // Если ходили белые (turn='white'), то съели черного -> Химера становится черной ('X')
+            const code = turn === 'white' ? 'X' : 'x';
+
             board[pendingMove.r][pendingMove.c] = code;
             board[selected.r][selected.c] = null;
-            log('ХИМЕРА создана.'); 
-            endTurn(selected.r, selected.c, pendingMove); 
-            pendingMove=null;
+
+            // === ВАЖНО: Инициализируем трекер лояльности для новой Химеры ===
+            const key = `${pendingMove.r},${pendingMove.c}`;
+            chimeraTracker[key] = 0; // 0 ходов использовано
+
+            log('ХИМЕРА рождена. Лояльность нестабильна.');
+            endTurn(selected.r, selected.c, pendingMove);
+            pendingMove = null;
         };
         window.declineProp = () => {
             document.getElementById('dip-modal').classList.remove('active');
-            board[pendingMove.r][pendingMove.c] = board[selected.r][selected.c]; 
+            board[pendingMove.r][pendingMove.c] = board[selected.r][selected.c];
             board[selected.r][selected.c] = null;
-            log('ОТКАЗ. Враг уничтожен.'); 
-            endTurn(selected.r, selected.c, pendingMove); 
-            pendingMove=null;
+            log('ОТКАЗ. Враг уничтожен.');
+            endTurn(selected.r, selected.c, pendingMove);
+            pendingMove = null;
         };
 
         // === ОБНОВЛЕННЫЙ RENDER С АНИМАЦИЕЙ И ЛИНИЯМИ ===
         function render() {
-            const div = document.getElementById('board'); 
+            const div = document.getElementById('board');
             const svg = document.getElementById('svg-overlay');
-            
+
             // Очищаем только клетки, SVG оставляем (но очищаем его контент внутри)
             // Чтобы не удалять сам SVG элемент, очищаем div.innerHTML, но потом восстанавливаем SVG?
             // Проще: удаляем все div.cell, оставляем svg
@@ -1250,7 +1581,7 @@
             // Логика поворота через CSS
             const wrapper = document.querySelector('.board-wrapper');
             const isFlipped = (myOnlineColor === 'black');
-            
+
             if (isFlipped) wrapper.classList.add('flipped');
             else wrapper.classList.remove('flipped');
 
@@ -1258,16 +1589,16 @@
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const d = document.createElement('div');
-                    d.className = `cell ${(r+c)%2?'dark':'light'}`;
-                    if(selected && selected.r===r && selected.c===c) d.classList.add('selected');
-                    
+                    d.className = `cell ${(r + c) % 2 ? 'dark' : 'light'}`;
+                    if (selected && selected.r === r && selected.c === c) d.classList.add('selected');
+
                     const p = board[r][c];
-                    if(inChk && p && getCol(p)===turn) {
-                        const target = (gameMode==='new_mode'&&kingDead&&turn===newModePlayer)?'z':'k';
-                        if(getType(p)===target) d.classList.add('check');
+                    if (inChk && p && getCol(p) === turn) {
+                        const target = (gameMode === 'new_mode' && kingDead && turn === newModePlayer) ? 'z' : 'k';
+                        if (getType(p) === target) d.classList.add('check');
                     }
 
-                    if(p) {
+                    if (p) {
                         const s = document.createElement('span');
                         s.className = `piece ${getCol(p)}`;
                         const t = getType(p);
@@ -1276,26 +1607,26 @@
                             if (t === 'a') s.classList.add('archon-light'); else s.classList.add('archon-dark');
                             s.innerHTML += `<span class="badge">${t === 'a' ? 'A' : 'C'}</span>`;
                         }
-                        if(t==='h') { s.classList.add('legion'); s.innerHTML += `<span class="badge">L</span>`; }
-                        if(t==='x') { s.classList.add('chimera'); s.innerHTML += `<span class="badge">X</span>`; }
-                        if(t==='z') { s.classList.add('heavy'); s.innerHTML += `<span class="badge">Z</span>`; }
+                        if (t === 'h') { s.classList.add('legion'); s.innerHTML += `<span class="badge">L</span>`; }
+                        if (t === 'x') { s.classList.add('chimera'); s.innerHTML += `<span class="badge">X</span>`; }
+                        if (t === 'z') { s.classList.add('heavy'); s.innerHTML += `<span class="badge">Z</span>`; }
 
-                        s.innerText = GP[p] || GP[getType(p)==='z' ? (getCol(p)==='white'?'q':'Q') : p] || p;
+                        s.innerText = GP[p] || GP[getType(p) === 'z' ? (getCol(p) === 'white' ? 'q' : 'Q') : p] || p;
                         d.appendChild(s);
                     }
-                    
-                    const mv = moves.find(m=>m.r===r && m.c===c);
-                    if(mv) {
-                        const h = document.createElement('div'); h.className='hint';
-                        if(mv.prop) h.classList.add('union-hint');
-                        else if(mv.atk) h.classList.add('attack-hint');
-                        else if(mv.fuse) { h.classList.add('special-hint','fuse'); h.innerText='FUSE'; }
-                        else if(mv.merge) { h.classList.add('special-hint','legion'); h.innerText='LEGION'; }
-                        else if(mv.castle) { h.classList.add('special-hint','castle'); h.innerText='CASTLE'; }
+
+                    const mv = moves.find(m => m.r === r && m.c === c);
+                    if (mv) {
+                        const h = document.createElement('div'); h.className = 'hint';
+                        if (mv.prop) h.classList.add('union-hint');
+                        else if (mv.atk) h.classList.add('attack-hint');
+                        else if (mv.fuse) { h.classList.add('special-hint', 'fuse'); h.innerText = 'FUSE'; }
+                        else if (mv.merge) { h.classList.add('special-hint', 'legion'); h.innerText = 'LEGION'; }
+                        else if (mv.castle) { h.classList.add('special-hint', 'castle'); h.innerText = 'CASTLE'; }
                         else h.classList.add('move-hint');
                         d.appendChild(h);
                     }
-                    d.onclick = () => clickCell(r,c);
+                    d.onclick = () => clickCell(r, c);
                     div.appendChild(d);
                 }
             }
@@ -1322,23 +1653,27 @@
                 line.setAttribute('stroke', 'rgba(124, 58, 237, 0.5)'); // Полупрозрачный фиолетовый
                 line.setAttribute('stroke-width', '6');
                 line.setAttribute('stroke-linecap', 'round');
-                
+
                 svg.appendChild(line);
             }
         }
 
-        function updateUI() { 
-            document.getElementById('turn-display').innerText = turn.toUpperCase(); 
-            document.getElementById('mode-display').innerText = gameMode==='new_mode'?'LAST STAND':'КЛАССИКА';
+        function updateUI() {
+            document.getElementById('turn-display').innerText = turn.toUpperCase();
+            document.getElementById('mode-display').innerText = gameMode === 'new_mode' ? 'LAST STAND' : 'КЛАССИКА';
             document.getElementById('loyalty').innerText = loyalty;
         }
         function log(t) { const l = document.getElementById('log'); l.innerHTML = `<div>> ${t}</div>` + l.innerHTML; }
 
         window.getBoardState = () => board;
-        window.syncBoardFromOnline = (newBoard, newTurn, newCastling) => {
-            if (JSON.stringify(board) === JSON.stringify(newBoard) && turn === newTurn) return;
-            board = newBoard; turn = newTurn; 
-            if(newCastling) castling = newCastling;
+        // Измени сигнатуру функции, добавив newTracker
+        window.syncBoardFromOnline = (newBoard, newTurn, newCastling, newTracker) => {
+            // Убираем проверку JSON.stringify, чтобы точно обновить трекер
+            board = newBoard;
+            turn = newTurn;
+            if (newCastling) castling = newCastling;
+            if (newTracker) chimeraTracker = newTracker; // <--- ПРИМЕНЯЕМ ТРЕКЕР ИЗ СЕТИ
+
             selected = null; moves = [];
             render(); updateUI(); checkGameState();
         };
@@ -1474,7 +1809,7 @@
 
             return score;
         }
-        
+
         // === ВСТАВИТЬ ЭТО В КОНЕЦ СКРИПТА (ИЛИ ЗАМЕНИТЬ СТАРЫЕ ВЕРСИИ) ===
 
         // 1. Новая функция: Считает, на сколько очков "горят" наши фигуры прямо сейчас
