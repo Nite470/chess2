@@ -3,22 +3,27 @@ const app = express();
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
-const path = require('path');
+const path = require('path'); // Добавили модуль для путей
 
 // Настройка Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // Разрешаем всем (для простоты)
     methods: ["GET", "POST"]
   }
 });
 
+// === ВАЖНОЕ ИЗМЕНЕНИЕ 1: Порт ===
+// Хостинги (Render, Heroku и др.) выдают порт через process.env.PORT
 const PORT = process.env.PORT || 3000;
 
+// === ВАЖНОЕ ИЗМЕНЕНИЕ 2: Раздача клиента ===
+// Сервер должен отдавать браузеру ваш HTML файл и картинки (если есть)
 app.use(express.static(__dirname)); 
 
+// При заходе на главную страницу отдаем index212.html
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index212.html')); // Ссылаемся на актуальный файл клиента
+  res.sendFile(path.join(__dirname, 'index212.html'));
 });
 
 // Хранилище игровых комнат
@@ -47,12 +52,7 @@ io.on('connection', (socket) => {
       players: [socket.id],
       board: null,
       turn: 'white',
-      mode: 'classic',
-      // === ЭКОНОМИКА ===
-      economy: { white: 0, black: 0 },
-      graveyard: { white: [], black: [] },
-      resHist: { white: [], black: [] },
-      chimeraTracker: {}
+      mode: 'classic'
     };
     socket.join(roomId);
     socket.emit('game_start', { 
@@ -60,11 +60,7 @@ io.on('connection', (socket) => {
         color: 'white',
         board: getDefaultBoard(),
         turn: 'white',
-        mode: 'classic',
-        economy: { white: 0, black: 0 },
-        graveyard: { white: [], black: [] },
-        resHist: { white: [], black: [] },
-        chimeraTracker: {}
+        mode: 'classic'
     });
     broadcastRoomList();
   });
@@ -82,45 +78,28 @@ io.on('connection', (socket) => {
     room.players.push(socket.id);
     socket.join(roomId);
     io.to(room.players[0]).emit('player_joined', { roomId });
-    
     socket.emit('game_start', { 
         roomId: roomId, 
         color: 'black',
         board: room.board || getDefaultBoard(),
         turn: room.turn,
-        mode: room.mode || 'classic',
-        economy: room.economy || { white: 0, black: 0 },
-        graveyard: room.graveyard || { white: [], black: [] },
-        resHist: room.resHist || { white: [], black: [] },
-        chimeraTracker: room.chimeraTracker || {}
+        mode: room.mode || 'classic'
     });
     broadcastRoomList();
   });
 
   socket.on('make_move', (data) => {
-    const { roomId, board, turn, lastMove, mode, moveCount, chimeraTracker, economy, graveyard, resHist } = data;
+    const { roomId, board, turn, lastMove, mode } = data;
     const room = rooms[roomId];
     if (room) {
       room.board = board;
       room.turn = turn;
       if (mode) room.mode = mode;
-      if (chimeraTracker) room.chimeraTracker = chimeraTracker;
-      
-      // Сохраняем экономику
-      if (economy) room.economy = economy;
-      if (graveyard) room.graveyard = graveyard;
-      if (resHist) room.resHist = resHist;
-
       io.in(roomId).emit('receive_move', {
         board: board,
         turn: turn,
         lastMove: lastMove,
-        mode: mode,
-        moveCount: moveCount,
-        chimeraTracker: chimeraTracker,
-        economy: economy,
-        graveyard: graveyard,
-        resHist: resHist
+        mode: mode
       });
     }
   });
@@ -162,4 +141,3 @@ function getDefaultBoard() {
 server.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
 });
-
