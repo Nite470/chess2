@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess 2: LAN Edition</title>
+    <title>Chess 2: Economy Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -93,6 +93,13 @@
                 myOnlineColor = data.color;
                 currentRoomId = data.roomId;
                 moveCount = 0; // Сброс счетчика при старте
+                
+                // Применяем данные сразу
+                if(data.economy) economy = data.economy;
+                if(data.graveyard) graveyard = data.graveyard;
+                if(data.resHist) resHist = data.resHist;
+                if(data.chimeraTracker) chimeraTracker = data.chimeraTracker;
+
                 window.syncBoardFromOnline(data.board, data.turn, data.castling);
                 window.enterOnlineMode(data.roomId, `Вы играете за: ${myOnlineColor === 'white' ? 'БЕЛЫХ' : 'ЧЕРНЫХ'}`);
                 log(`Игра началась! Ваш цвет: ${myOnlineColor.toUpperCase()}`);
@@ -112,7 +119,11 @@
                     }
                 }
 
-                
+                // Обновляем экономику
+                if(data.economy) economy = data.economy;
+                if(data.graveyard) graveyard = data.graveyard;
+                if(data.resHist) resHist = data.resHist;
+                if(data.chimeraTracker) chimeraTracker = data.chimeraTracker;
 
                 document.getElementById('dip-modal').classList.remove('active');
 
@@ -126,7 +137,7 @@
                         log("Получено предложение союза!");
                     }
                 } else {
-                    window.syncBoardFromOnline(data.board, data.turn, data.castling, data.chimeraTracker);
+                    window.syncBoardFromOnline(data.board, data.turn, data.castling);
 
                     lastMoveData = data.lastMove || null;
 
@@ -166,6 +177,7 @@
             document.getElementById('online-msg').innerText = status;
         };
 
+        // Добавляем moveCount в отправку данных
         window.sendMoveToCloud = (boardState, nextTurn, moveDetails, castlingState, modeState, mCount) => {
             if (!socket || !currentRoomId) return;
             socket.emit('make_move', {
@@ -175,8 +187,12 @@
                 lastMove: moveDetails,
                 castling: castlingState,
                 mode: modeState || gameMode,
-                moveCount: mCount,
-                chimeraTracker: chimeraTracker // <--- ДОБАВИЛИ ОТПРАВКУ ТРЕКЕРА
+                moveCount: mCount, // <--- ВАЖНО: передаем счетчик
+                // ОТПРАВЛЯЕМ ВСЮ ЭКОНОМИКУ
+                chimeraTracker: chimeraTracker,
+                economy: economy,
+                graveyard: graveyard,
+                resHist: resHist
             });
         };
 
@@ -298,6 +314,8 @@
             .cell.check {
                 background: rgba(239, 68, 68, 0.6) !important;
             }
+            .cell.place-mode { background: rgba(16, 185, 129, 0.3) !important; box-shadow: inset 0 0 10px #10b981; }
+            .cell.allowed-zone { background: rgba(59, 130, 246, 0.2) !important; box-shadow: inset 0 0 10px #3b82f6; }
 
         .hint {
             position: absolute;
@@ -518,6 +536,16 @@
             filter: none;
         }
 
+        .shop-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 4px 8px; background: #0f172a; border: 1px solid #334155;
+            margin-bottom: 4px; cursor: pointer; border-radius: 4px; transition: 0.2s;
+        }
+        .shop-item:hover { background: #1e293b; border-color: #fbbf24; }
+        .shop-item.active { background: #3b82f6; border-color: white; color: white; }
+        .coin-icon { color: #fbbf24; margin-right: 4px; }
+        .shop-piece { font-size: 1.2em; }
+
         /* === МОБИЛЬНАЯ АДАПТАЦИЯ === */
         @media (max-width: 700px) {
 
@@ -569,31 +597,44 @@
     <!-- Sidebar -->
     <div class="w-full md:w-80 bg-[#020617] p-6 border-r border-[#1e293b] flex flex-col z-20 shadow-2xl overflow-y-auto">
         <h1 class="text-3xl font-bold title-font mb-1 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">ШАХМАТЫ 2.0</h1>
-        <div class="text-xs text-gray-500 mb-6 font-mono">LAN / RADMIN Edition</div>
+        <div class="text-xs text-gray-500 mb-6 font-mono">ECONOMY Edition</div>
 
+        <!-- ЭКОНОМИКА БЛОК -->
         <div class="stat-box">
             <div class="flex justify-between items-center mb-2">
                 <span class="text-xs text-gray-400">ХОД</span>
                 <span id="turn-display" class="font-bold text-white bg-slate-700 px-2 py-1 rounded">БЕЛЫЕ</span>
             </div>
-            <div class="text-[10px] text-gray-500 flex justify-between">
+            <div class="flex justify-between items-center border-t border-gray-700 pt-2">
+                <div class="text-xs text-white"><i class="fas fa-coins text-yellow-500 mr-1"></i>Белые: <span id="coin-w" class="font-bold">0</span></div>
+                <div class="text-xs text-white"><i class="fas fa-coins text-yellow-500 mr-1"></i>Черные: <span id="coin-b" class="font-bold">0</span></div>
+            </div>
+            <div class="text-[10px] text-gray-500 flex justify-between mt-1">
                 <span>Режим: <span id="mode-display" class="text-blue-400">КЛАССИКА</span></span>
                 <span>Лояльность: <span id="loyalty" class="text-white">3</span></span>
             </div>
         </div>
-        <div class="text-[10px] text-gray-400 flex justify-between mt-1">
-            <span>Мораль Белых: <span id="morale-w" class="text-emerald-400">10</span></span>
-            <span>Мораль Черных: <span id="morale-b" class="text-emerald-400">10</span></span>
+
+        <!-- МАГАЗИН ВОСКРЕШЕНИЯ -->
+        <div class="stat-box">
+            <div class="text-[10px] text-gray-400 mb-2 uppercase font-bold tracking-wider">Кладбище (Магазин)</div>
+            <div id="graveyard-list" class="max-h-[150px] overflow-y-auto pr-1">
+                <div class="text-gray-500 text-xs italic">Пусто...</div>
+            </div>
+            <div class="text-[9px] text-gray-500 mt-2 text-center">
+                Лимит: 1 воскрешение за 3 хода.<br>Белые: 7-8 ряд, Черные: 1-2 ряд.
+            </div>
+            <button id="cancel-shop-btn" class="btn btn-danger text-xs mt-2 hidden" onclick="cancelShop()">Отмена выбора</button>
         </div>
 
-
         <div class="stat-box">
+            <div class="text-[10px] text-gray-400 flex justify-between mt-1 mb-2">
+                <span>Мораль Белых: <span id="morale-w" class="text-emerald-400">10</span></span>
+                <span>Мораль Черных: <span id="morale-b" class="text-emerald-400">10</span></span>
+            </div>
             <div id="online-status" class="text-[10px] text-gray-500 mb-2 font-bold">СЕТЬ: НЕ ПОДКЛЮЧЕНА</div>
             <div id="connection-panel" class="mb-4 pb-4 border-b border-gray-700">
-                <label class="text-[10px] text-gray-400 block mb-1">IP сервера Radmin VPN (host:3000)</label>
-                <input id="server-ip" type="text" placeholder="Пример: 26.123.45.67:3000" class="dark-input mb-2 text-xs">
-                <button id="btn-connect" onclick="connectToServer()" class="btn btn-primary text-xs">Подключиться</button>
-                <p class="text-[9px] text-gray-500 mt-1">* Если вы сервер, оставьте пустым (localhost)</p>
+                <button id="btn-connect" onclick="connectToServer()" class="btn btn-primary text-xs">Подключиться к Серверу</button>
             </div>
             <div id="lobby-panel" class="hidden">
                 <button onclick="hostGame()" class="btn btn-primary mb-2">Создать Комнату</button>
@@ -601,7 +642,6 @@
                     <input id="room-input" type="text" placeholder="ID" class="w-2/3 bg-slate-900 border border-slate-600 px-3 text-white uppercase outline-none text-sm rounded">
                     <button onclick="joinGame()" class="w-1/3 btn text-xs py-2 m-0">Войти</button>
                 </div>
-                <!-- Список комнат -->
                 <div class="border-t border-gray-700 pt-2">
                     <div class="text-[10px] text-gray-400 mb-1">Доступные комнаты:</div>
                     <div id="room-list-container" class="max-h-[100px] overflow-y-auto">
@@ -626,7 +666,7 @@
             </div>
         </div>
         <div id="log" class="flex-1 bg-black p-3 font-mono text-[10px] text-green-500 overflow-y-auto border border-gray-800 rounded min-h-[100px] leading-relaxed">
-            <div>> Система готова. Введите IP сервера.</div>
+            <div>> Экономика подключена.</div>
         </div>
         <button onclick="location.reload()" class="btn mt-4 bg-slate-800">Перезагрузка</button>
         <button onclick="toggleAI()" class="btn bg-purple-700 mt-2">ИГРАТЬ С ИИ</button>
@@ -636,7 +676,6 @@
     <div class="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
         <div class="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900 via-gray-900 to-black pointer-events-none"></div>
         <div id="board" class="board-wrapper shadow-2xl relative z-10">
-            <!-- SVG для рисования линии -->
             <svg id="svg-overlay" width="100%" height="100%"></svg>
         </div>
     </div>
@@ -645,17 +684,13 @@
         <div class="bg-gray-900 p-8 border border-gray-700 text-center rounded-xl shadow-2xl max-w-md w-full">
             <h2 id="end-title" class="text-4xl title-font font-bold mb-6 text-white tracking-wider">МАТ</h2>
             <p id="end-desc" class="text-gray-400 text-sm mb-6">Игра окончена.</p>
-            <!-- Блок кнопок, который мы будем скрывать для победителя -->
             <div id="end-buttons" class="flex flex-col gap-3">
                 <button onclick="activateNewMode()" id="btn-new-mode" class="btn btn-primary py-4 text-lg shadow-lg shadow-blue-900/50">
                     <i class="fas fa-skull mr-2"></i> ВОСКРЕСИТЬ АРМИЮ
                 </button>
                 <button onclick="initGame()" id="btn-restart" class="btn">Новая Игра</button>
             </div>
-            <!-- Сообщение для победителя -->
-            <div id="winner-wait-msg" class="hidden text-emerald-400 font-mono animate-pulse">
-                ОЖИДАНИЕ РЕШЕНИЯ СОПЕРНИКА...
-            </div>
+            <div id="winner-wait-msg" class="hidden text-emerald-400 font-mono animate-pulse">ОЖИДАНИЕ РЕШЕНИЯ СОПЕРНИКА...</div>
         </div>
     </div>
 
@@ -674,99 +709,107 @@
         const GP = { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙', a: '♖', c: '♖', h: '♞', x: '♞', z: '♕', K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟', A: '♜', C: '♜', H: '♘', X: '♘', Z: '♛' };
 
         let board = [], turn = 'white', selected = null, moves = [], gameMode = 'classic';
-        let chimeraTracker = {}; // Формат: { "row,col": count }
+        let chimeraTracker = {}; 
         let kingDead = false, loyalty = 3, pendingMove = null;
         let newModePlayer = null;
         let whiteRevived = false;
         let blackRevived = false;
         let moveCount = 0;
-        let lastMoveData = null; // Для отрисовки линии
-        let aiEnabled = false;  // режим игры против ИИ
-        let aiColor = 'black';  // за кого будет играть ИИ
+        let lastMoveData = null; 
+        let aiEnabled = false;  
+        let aiColor = 'black';  
+        let whiteMorale = 10;
+        let blackMorale = 10;
 
+        // === ЭКОНОМИКА ===
+        let economy = { white: 0, black: 0 };
+        let graveyard = { white: [], black: [] }; 
+        let resHist = { white: [], black: [] };   
+        let shopSelected = null; 
+
+        // Доходность
+        const INCOME_VALUES = {
+            'p': 1, 'P': 1,
+            'k': 2, 'K': 2,
+            'b': 3, 'B': 3,
+            'n': 3, 'N': 3,
+            'r': 5, 'R': 5,
+            'h': 6, 'H': 6,
+            'a': 7, 'c': 7, 'A': 7, 'C': 7, 
+            'q': 8, 'Q': 8,
+            'z': 8, 'Z': 8, 
+            'x': 9, 'X': 9  // Химера обрабатывается отдельно
+        };
+
+        const REVIVE_COST = {
+            'p': 10, 'n': 30, 'b': 30, 'r': 50
+        };
 
         let castling = {
             white: { k: true, l: true, r: true },
             black: { k: true, l: true, r: true }
         };
+
         function updateLossCounters() {
-            // Стоимость фигур в пешках
-            const pieceValue = {
-                p: 1, P: 1,        // пешки
-                n: 3, N: 3,        // кони
-                b: 3, B: 3,        // слоны
-                r: 5, R: 5,        // ладьи
-                a: 8, A: 8,        // архонты/канцлеры светлый
-                c: 8, C: 8,        // архонты/канцлеры тёмный
-                h: 6, H: 6,        // легион
-                q: 10, Q: 10       // ферзь
-                // Химеру X/x не указываем → потери не считаются
-            };
-
-            // Стартовая стоимость армии (в пешках)
-            const START_VALUE =
-                8 * 1 +   // пешки
-                2 * 3 +   // кони
-                2 * 3 +   // слоны
-                2 * 5 +   // ладьи
-                1 * 10;   // ферзь
-            // Король = 0
-
-            let whiteCurrent = 0;
-            let blackCurrent = 0;
-
-            // Подсчитываем текущую стоимость армии
+            const pieceValue = { p: 1, P: 1, n: 3, N: 3, b: 3, B: 3, r: 5, R: 5, a: 8, A: 8, c: 8, C: 8, h: 6, H: 6, q: 10, Q: 10 };
+            const START_VALUE = 8 * 1 + 2 * 3 + 2 * 3 + 2 * 5 + 1 * 10;
+            let whiteCurrent = 0, blackCurrent = 0;
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const p = board[r][c];
-                    if (!p) continue;
-
-                    if (!pieceValue[p]) continue; // игнорируем короля и химеру
-
+                    if (!p || !pieceValue[p]) continue;
                     if (p === p.toUpperCase()) blackCurrent += pieceValue[p];
                     else whiteCurrent += pieceValue[p];
                 }
             }
-
-            // Потери = стартовая стоимость - текущая
-            const whiteLoss = START_VALUE - whiteCurrent;
-            const blackLoss = START_VALUE - blackCurrent;
-
-            document.getElementById('loss-w').innerText = whiteLoss;
-            document.getElementById('loss-b').innerText = blackLoss;
+            document.getElementById('loss-w').innerText = START_VALUE - whiteCurrent;
+            document.getElementById('loss-b').innerText = START_VALUE - blackCurrent;
         }
+
         function updateMoraleUI() {
             document.getElementById("morale-w").innerText = whiteMorale.toFixed(1);
             document.getElementById("morale-b").innerText = blackMorale.toFixed(1);
-
-            // цвет меняем в зависимости от состояния
-            const wElem = document.getElementById("morale-w");
-            const bElem = document.getElementById("morale-b");
-
             const colorize = (el, morale) => {
-                if (morale > 6) el.style.color = "#34d399";      // зелёный — армия уверена
-                else if (morale > 3) el.style.color = "#fbbf24"; // жёлтый — тревога
-                else el.style.color = "#f87171";                 // красный — паника
+                if (morale > 6) el.style.color = "#34d399";
+                else if (morale > 3) el.style.color = "#fbbf24";
+                else el.style.color = "#f87171";
             };
+            colorize(document.getElementById("morale-w"), whiteMorale);
+            colorize(document.getElementById("morale-b"), blackMorale);
+        }
+        
+        function updateUI() {
+            document.getElementById('turn-display').innerText = turn.toUpperCase();
+            document.getElementById('mode-display').innerText = gameMode === 'new_mode' ? 'LAST STAND' : 'КЛАССИКА';
+            document.getElementById('loyalty').innerText = loyalty;
+            
+            const myColor = window.getOnlineColor();
+            
+            // ПРИВАТНОСТЬ: Если мы играем онлайн и мы зритель, или просто смотрим - показываем "???"
+            // Если игра локальная (myColor == null), показываем все.
+            // Если мы белые, видим золото белых. Если черные - черных.
+            
+            let showWhite = true;
+            let showBlack = true;
 
-            colorize(wElem, whiteMorale);
-            colorize(bElem, blackMorale);
+            if (myColor) {
+                if (myColor === 'white') showBlack = false;
+                if (myColor === 'black') showWhite = false;
+            }
+
+            document.getElementById('coin-w').innerText = showWhite ? economy.white : '???';
+            document.getElementById('coin-b').innerText = showBlack ? economy.black : '???';
+            
+            renderGraveyard(myColor);
         }
 
         function toggleAI() {
             aiEnabled = !aiEnabled;
-
             if (aiEnabled) {
                 log("Режим ИИ включён. Вы играете против робота.");
-                // Отключаем онлайн-режим, если он был активен
-                currentRoomId = null;
-                myOnlineColor = null;
-                isConnected = false;
-            } else {
-                log("Режим ИИ выключен.");
-            }
+                currentRoomId = null; myOnlineColor = null; isConnected = false;
+            } else { log("Режим ИИ выключен."); }
         }
-
 
         function initGame() {
             board = [];
@@ -782,7 +825,12 @@
             chimeraTracker = {};
             turn = 'white'; selected = null; moves = []; gameMode = 'classic'; kingDead = false;
             loyalty = 3; pendingMove = null; newModePlayer = null;
-            lastMoveData = null;
+            lastMoveData = null; moveCount = 0;
+
+            economy = { white: 0, black: 0 };
+            graveyard = { white: [], black: [] };
+            resHist = { white: [], black: [] };
+            shopSelected = null;
 
             castling = { white: { k: true, l: true, r: true }, black: { k: true, l: true, r: true } };
 
@@ -810,19 +858,15 @@
         function getMoves(r, c, safe = true) {
             const p = board[r][c];
             if (!p) return [];
-
             const col = getCol(p), type = getType(p);
             const m = [];
-
             const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
             const kn = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
             const bigKn = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
 
-            // 1. Pawn
             if (type === 'p') {
                 const d = col === 'white' ? -1 : 1;
                 const start = col === 'white' ? 6 : 1;
-
                 if (onBd(r + d, c) && !board[r + d][c]) {
                     m.push({ r: r + d, c });
                     if (r === start && !board[r + d * 2][c]) m.push({ r: r + d * 2, c });
@@ -830,26 +874,20 @@
                 [[d, 1], [d, -1]].forEach(([dr, dc]) => {
                     if (onBd(r + dr, c + dc)) {
                         const t = board[r + dr][c + dc];
-                        if (t && getCol(t) !== col) {
-                            m.push({ r: r + dr, c: c + dc, atk: true });
-                        }
-
+                        if (t && getCol(t) !== col) m.push({ r: r + dr, c: c + dc, atk: true });
                     }
                 });
             }
 
-            // 2. Sliding Pieces (Rook, Bishop, Queen, Archon)
             if (['r', 'b', 'q', 'a', 'c'].includes(type)) {
                 let myDirs = [];
                 if (type === 'r' || type === 'q') myDirs.push(...dirs.slice(0, 4));
                 if (type === 'b' || type === 'q') myDirs.push(...dirs.slice(4));
-
                 if (type === 'a' || type === 'c') {
                     myDirs = [...dirs.slice(0, 4)];
                     const okDiag = (type === 'a' && isLight(r, c)) || (type === 'c' && !isLight(r, c));
                     if (okDiag) myDirs.push(...dirs.slice(4));
                 }
-
                 myDirs.forEach(([dr, dc]) => {
                     let tr = r + dr, tc = c + dc;
                     while (onBd(tr, tc)) {
@@ -865,9 +903,7 @@
                 });
             }
 
-            // 3. Knights, Legion, Chimera
             if (['n', 'h', 'x'].includes(type)) {
-                const col = getCol(p);
                 function addKnightMove(r2, c2) {
                     if (!onBd(r2, c2)) return;
                     const t = board[r2][c2];
@@ -882,28 +918,23 @@
                 if (type === 'h' || type === 'x') { for (const [dr, dc] of bigKn) addKnightMove(r + dr, c + dc); }
             }
 
-            // 4. King AND New "Heavy Queen" (z)
             if (type === 'k' || type === 'z') {
                 dirs.forEach(([dr, dc]) => {
                     if (onBd(r + dr, c + dc)) {
                         const t = board[r + dr][c + dc];
-                        if (!t || getCol(t) !== col)
-                            m.push({ r: r + dr, c: c + dc, atk: !!t });
+                        if (!t || getCol(t) !== col) m.push({ r: r + dr, c: c + dc, atk: !!t });
                     }
                 });
-
                 if (safe && type === 'k') {
                     const row = (col === 'white' ? 7 : 0);
                     if (!inCheck(col, board)) {
                         const opp = (col === 'white') ? 'black' : 'white';
-                        // Short
                         const rookShort = board[row][7];
                         if (castling[col].k && castling[col].r && rookShort && getType(rookShort) === 'r' && getCol(rookShort) === col) {
                             if (!board[row][5] && !board[row][6] && !isAttacked(row, 5, opp) && !isAttacked(row, 6, opp)) {
                                 m.push({ r: row, c: 6, castle: "short" });
                             }
                         }
-                        // Long
                         const rookLong = board[row][0];
                         if (castling[col].k && castling[col].l && rookLong && getType(rookLong) === 'r' && getCol(rookLong) === col) {
                             if (!board[row][1] && !board[row][2] && !board[row][3] && !isAttacked(row, 3, opp) && !isAttacked(row, 2, opp)) {
@@ -925,9 +956,7 @@
                 }
                 finalMoves.push(mv);
             }
-
             if (!safe) return finalMoves;
-
             const legal = [];
             for (const mv of finalMoves) {
                 const tmp = board.map(row => [...row]);
@@ -941,21 +970,10 @@
         function inCheck(col, bd) {
             let kr = -1, kc = -1;
             let kingSymbol = (col === 'white') ? 'k' : 'K';
-
-            if (gameMode === 'new_mode' && kingDead && col === newModePlayer) {
-                kingSymbol = (col === 'white') ? 'z' : 'Z';
-            }
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    if (bd[r][c] === kingSymbol) { kr = r; kc = c; }
-                }
-            }
-
+            if (gameMode === 'new_mode' && kingDead && col === newModePlayer) kingSymbol = (col === 'white') ? 'z' : 'Z';
+            for (let r = 0; r < 8; r++) { for (let c = 0; c < 8; c++) { if (bd[r][c] === kingSymbol) { kr = r; kc = c; } } }
             if (kr === -1) return true;
             const opp = col === 'white' ? 'black' : 'white';
-
-            // 1. Pawn
             const pawnAttackFromDir = (opp === 'white') ? 1 : -1;
             for (let dc of [-1, 1]) {
                 const pr = kr + pawnAttackFromDir, pc = kc + dc;
@@ -964,32 +982,20 @@
                     if (p && getCol(p) === opp && getType(p) === 'p') return true;
                 }
             }
-
-            // 2. Knights etc...
             const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
             for (let [dr, dc] of knightSmall) {
                 const r = kr + dr, c = kc + dc;
-                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-                    const p = bd[r][c];
-                    if (p && getCol(p) === opp && getType(p) === 'n') return true;
-                }
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) { const p = bd[r][c]; if (p && getCol(p) === opp && getType(p) === 'n') return true; }
             }
             const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
             for (let [dr, dc] of knightLarge) {
                 const r = kr + dr, c = kc + dc;
-                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-                    const p = bd[r][c];
-                    if (p && getCol(p) === opp && getType(p) === 'h') return true;
-                }
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) { const p = bd[r][c]; if (p && getCol(p) === opp && getType(p) === 'h') return true; }
             }
             for (let [dr, dc] of [...knightSmall, ...knightLarge]) {
                 const r = kr + dr, c = kc + dc;
-                if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-                    const p = bd[r][c];
-                    if (p && getCol(p) === opp && getType(p) === 'x') return true;
-                }
+                if (r >= 0 && r < 8 && c >= 0 && c < 8) { const p = bd[r][c]; if (p && getCol(p) === opp && getType(p) === 'x') return true; }
             }
-
             const rookDirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
             for (let [dr, dc] of rookDirs) {
                 let r = kr + dr, c = kc + dc;
@@ -1003,50 +1009,30 @@
                     r += dr; c += dc;
                 }
             }
-
-            const diagDirs = [[1,1], [1,-1], [-1,1], [-1,-1]];
+            const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
             for (let [dr, dc] of diagDirs) {
                 let r = kr + dr, c = kc + dc;
-
                 while (r >= 0 && r < 8 && c >= 0 && c < 8) {
                     const p = bd[r][c];
                     if (p) {
                         const t = getType(p);
-
-                        // Проверяем нападение только если фигура ВРАЖЕСКАЯ
                         if (getCol(p) === opp) {
-
-                            // Слон / ферзь / лидер Z
                             if (t === 'b' || t === 'q' || t === 'z') return true;
-
-                            // Белопольный архонт атакует диагональю, только если находится на светлой клетке
-                            if (t === 'a' && isLight(r,c)) return true;
-
-                            // Чернопольный архонт атакует диагональю, только если стоит на тёмной клетке
-                            if (t === 'c' && !isLight(r,c)) return true;
+                            if (t === 'a' && isLight(r, c)) return true;
+                            if (t === 'c' && !isLight(r, c)) return true;
                         }
-
-                        // НЕ ВРАЖЕСКАЯ фигура — просто блокирует линию
                         break;
                     }
-
-                    r += dr;
-                    c += dc;
+                    r += dr; c += dc;
                 }
             }
-
-
             for (let dr of [-1, 0, 1]) {
                 for (let dc of [-1, 0, 1]) {
                     if (dr === 0 && dc === 0) continue;
                     const r = kr + dr, c = kc + dc;
-                    if (r >= 0 && r < 8 && c >= 0 && c < 8) {
-                        const p = bd[r][c];
-                        if (p && getCol(p) === opp && getType(p) === 'k') return true;
-                    }
+                    if (r >= 0 && r < 8 && c >= 0 && c < 8) { const p = bd[r][c]; if (p && getCol(p) === opp && getType(p) === 'k') return true; }
                 }
             }
-
             return false;
         }
 
@@ -1060,22 +1046,16 @@
                     }
                 }
             }
-
             const isCheck = inCheck(turn, board);
-
             if (!hasMoves && isCheck) {
-                // === МАТ ===
                 log(`МАТ! Победили ${turn === 'white' ? 'Черные' : 'Белые'}`);
                 document.getElementById('end-title').innerText = (turn === 'white' ? "БЕЛЫМ" : "ЧЕРНЫМ") + " МАТ";
                 document.getElementById('end-desc').innerText = "Король пал. Возродить армию?";
-
                 const btnMode = document.getElementById('btn-new-mode');
                 if (turn === 'white') btnMode.style.display = whiteRevived ? 'none' : 'inline-flex';
                 else btnMode.style.display = blackRevived ? 'none' : 'inline-flex';
-
                 const buttonsBlock = document.getElementById('end-buttons');
                 const waitMsg = document.getElementById('winner-wait-msg');
-
                 if (window.isOnlineActive() && window.getOnlineColor() && window.getOnlineColor() !== turn) {
                     buttonsBlock.classList.add('hidden');
                     waitMsg.classList.remove('hidden');
@@ -1083,12 +1063,8 @@
                     buttonsBlock.classList.remove('hidden');
                     waitMsg.classList.add('hidden');
                 }
-
                 document.getElementById('end-modal').classList.add('active');
-            }
-
-            else if (!hasMoves && !isCheck) {
-                // === ПАТ ===
+            } else if (!hasMoves && !isCheck) {
                 log("ПАТ! Ничья.");
                 document.getElementById('end-title').innerText = "ПАТ";
                 document.getElementById('end-desc').innerText = "Ничья. Ни один игрок не может сделать ход.";
@@ -1096,16 +1072,53 @@
                 document.getElementById('end-buttons').classList.remove('hidden');
                 document.getElementById('winner-wait-msg').classList.add('hidden');
                 document.getElementById('end-modal').classList.add('active');
-            }
-
-            else {
+            } else {
                 document.getElementById('end-modal').classList.remove('active');
             }
         }
 
-
         function clickCell(r, c) {
             if (window.isOnlineActive() && window.getOnlineColor() && turn !== window.getOnlineColor()) return;
+            
+            // ЛОГИКА ПОКУПКИ (ВОСКРЕШЕНИЯ)
+            if (shopSelected) {
+                if (board[r][c]) {
+                    log("Клетка занята!");
+                    return;
+                }
+                
+                // Зоны высадки: Белые 7-8 (index 6,7), Черные 1-2 (index 0,1)
+                const isAllowedZone = (turn === 'white' && (r === 6 || r === 7)) || (turn === 'black' && (r === 0 || r === 1));
+                if (!isAllowedZone) {
+                    log("Нельзя! Ставьте только на стартовые линии.");
+                    return;
+                }
+
+                // Лимит: 1 воскрешение за 3 хода
+                const recentRevives = resHist[turn].filter(m => m > moveCount - 3).length;
+                if (recentRevives >= 1) {
+                    log("ЛИМИТ! Только 1 воскрешение за 3 хода.");
+                    cancelShop();
+                    return;
+                }
+
+                let pieceChar = shopSelected.toLowerCase(); 
+                if (turn === 'black') pieceChar = pieceChar.toUpperCase();
+
+                board[r][c] = pieceChar;
+                economy[turn] -= REVIVE_COST[shopSelected.toLowerCase()];
+                
+                const gIndex = graveyard[turn].indexOf(shopSelected);
+                if (gIndex > -1) graveyard[turn].splice(gIndex, 1);
+
+                resHist[turn].push(moveCount);
+                
+                log(`ВОСКРЕШЕНИЕ: ${GP[pieceChar]}`);
+                cancelShop();
+                endTurn(r, c, {r, c}, {from:{r,c}, to:{r,c}}); 
+                return;
+            }
+
             if (selected) {
                 const mv = moves.find(m => m.r === r && m.c === c);
                 if (mv) { doMove(mv); return; }
@@ -1121,13 +1134,7 @@
             const p = board[start.r][start.c];
             const type = getType(p);
             const col = getCol(p);
-
-            // Сохраняем ход для отправки
-            const moveDetails = {
-                from: start,
-                to: mv,
-                proposal: !!mv.prop
-            };
+            const moveDetails = { from: start, to: mv, proposal: !!mv.prop };
 
             if (mv.prop && window.isOnlineActive()) {
                 window.sendMoveToCloud(board, turn, moveDetails, castling, gameMode);
@@ -1136,22 +1143,27 @@
                 return;
             }
             if (mv.prop) { pendingMove = mv; document.getElementById('dip-modal').classList.add('active'); return; }
-            // 1. Если на целевой клетке стоит кто-то, удаляем его запись из трекера (вдруг там стояла другая Химера)
-            const targetKey = `${mv.r},${mv.c}`;
-            if (chimeraTracker[targetKey] !== undefined) {
-                delete chimeraTracker[targetKey];
+
+            // === ОБРАБОТКА ВЗЯТИЯ (ЭКОНОМИКА) ===
+            const targetP = board[mv.r][mv.c];
+            if (targetP) {
+                const tType = getType(targetP);
+                const tCol = getCol(targetP);
+                const isMerge = (getCol(targetP) === col); 
+                
+                if (!isMerge && REVIVE_COST[tType]) {
+                    graveyard[tCol].push(tType);
+                }
             }
 
-            // 2. Если ходит сама ХИМЕРА, переносим её счетчик на новые координаты
+            const targetKey = `${mv.r},${mv.c}`;
+            if (chimeraTracker[targetKey] !== undefined) delete chimeraTracker[targetKey];
             if (getType(p) === 'x') {
                 const startKey = `${start.r},${start.c}`;
                 if (chimeraTracker[startKey] !== undefined) {
-                    chimeraTracker[targetKey] = chimeraTracker[startKey]; // Переносим значение
-                    delete chimeraTracker[startKey]; // Удаляем со старой клетки
-                } else {
-                    // Если вдруг трекера не было (баг), создаем
-                    chimeraTracker[targetKey] = 0;
-                }
+                    chimeraTracker[targetKey] = chimeraTracker[startKey];
+                    delete chimeraTracker[startKey];
+                } else { chimeraTracker[targetKey] = 0; }
             }
             if (type === 'k') castling[turn].k = false;
             if (type === 'r') {
@@ -1181,809 +1193,212 @@
                     }
                 }
             }
-
             if (mv.fuse) {
                 const isL = isLight(start.r, start.c);
                 const code = turn === 'white' ? (isL ? 'a' : 'c') : (isL ? 'A' : 'C');
                 board[mv.r][mv.c] = code;
                 board[start.r][start.c] = null;
                 log('СЛИЯНИЕ: Канцлер создан.');
-            }
-            else if (mv.castle) {
+            } else if (mv.castle) {
                 board[mv.r][mv.c] = p;
                 board[start.r][start.c] = null;
                 castling[turn].k = false;
                 const row = turn === 'white' ? 7 : 0;
-                if (mv.castle === 'short') {
-                    board[row][5] = board[row][7];
-                    board[row][7] = null;
-                } else {
-                    board[row][3] = board[row][0];
-                    board[row][0] = null;
-                }
+                if (mv.castle === 'short') { board[row][5] = board[row][7]; board[row][7] = null; } 
+                else { board[row][3] = board[row][0]; board[row][0] = null; }
                 log('РОКИРОВКА!');
             } else {
                 board[mv.r][mv.c] = p;
                 board[start.r][start.c] = null;
                 if (type === 'p' && (mv.r === 0 || mv.r === 7)) {
-                    if (gameMode === 'new_mode') {
-                        board[mv.r][mv.c] = turn === 'white' ? 'q' : 'Q';
-                        log("ПРОМОУШН: Создан Ферзь.");
-                    } else {
-                        board[mv.r][mv.c] = turn === 'white' ? 'q' : 'Q';
-                    }
+                    if (gameMode === 'new_mode') { board[mv.r][mv.c] = turn === 'white' ? 'q' : 'Q'; log("ПРОМОУШН: Создан Ферзь."); } 
+                    else { board[mv.r][mv.c] = turn === 'white' ? 'q' : 'Q'; }
                 }
             }
             endTurn(start.r, start.c, mv, moveDetails);
         }
+
+        function calculateIncome(playerColor) {
+            let income = 0;
+            let chimeraCount = 0;
+
+            for(let r=0; r<8; r++) {
+                for(let c=0; c<8; c++) {
+                    const p = board[r][c];
+                    if(!p) continue;
+                    
+                    const type = getType(p);
+                    const val = INCOME_VALUES[p] || 0;
+
+                    if (type === 'x') {
+                        chimeraCount++;
+                        continue;
+                    }
+
+                    if (getCol(p) === playerColor) {
+                        income += val;
+                    }
+                }
+            }
+            if (chimeraCount > 0) income += (chimeraCount * 9);
+
+            return income;
+        }
+
         function endTurn(sr, sc, mv, moveDetails) {
             const nextTurn = turn === 'white' ? 'black' : 'white';
-
-            // 1. Сначала увеличиваем счетчик
             moveCount++;
 
-            // 2. Затем выполняем механику переворота Химеры (если нужно)
-            // Она перевернется и локально, и в массиве board, который уйдет в сеть
-            // === НОВАЯ ЛОГИКА ХИМЕРЫ ===
-            // Мы проверяем только те Химеры, чей владелец только что завершил ход.
-            const justFinishedPlayer = turn; // Игрок, который только что сходил (перед сменой turn)
-
-            // Проходимся по всем записям трекера
+            // === ХИМЕРА ЛОГИКА ===
+            const justFinishedPlayer = turn; 
             for (const key in chimeraTracker) {
                 const [r, c] = key.split(',').map(Number);
                 const p = board[r][c];
-
-                // Проверка: действительно ли там стоит Химера?
                 if (p && getType(p) === 'x') {
                     const owner = getCol(p);
-
-                    // Если Химера принадлежит игроку, который только что сделал ход
                     if (owner === justFinishedPlayer) {
-                        chimeraTracker[key]++; // Увеличиваем счетчик использования
-
-                        // Если владелец походил 2 раза (или больше)
+                        chimeraTracker[key]++; 
                         if (chimeraTracker[key] >= 2) {
-                            // МЕНЯЕМ ЦВЕТ
-                            const newType = (p === 'x') ? 'X' : 'x'; // Меняем регистр (цвет)
+                            const newType = (p === 'x') ? 'X' : 'x'; 
                             board[r][c] = newType;
-                            chimeraTracker[key] = 0; // Сбрасываем счетчик для нового владельца
-
+                            chimeraTracker[key] = 0; 
                             log(`ХИМЕРА на ${String.fromCharCode(97 + c)}${8 - r} сменила лояльность!`);
                         }
                     }
-                } else {
-                    // Мусор в трекере (фигуры нет, а запись осталась) - чистим
-                    delete chimeraTracker[key];
-                }
-            }
-            // === КОНЕЦ НОВОЙ ЛОГИКИ ===
-
-            // Если moveDetails не передан...
-            if (!moveDetails && typeof sr !== 'undefined') {
-                moveDetails = { from: { r: sr, c: sc }, to: mv };
+                } else { delete chimeraTracker[key]; }
             }
 
-            // 3. И только ТЕПЕРЬ отправляем финальное состояние
+            // === ДОХОД РАЗ В 5 ХОДОВ (РАУНДОВ) ===
+            // 5 полных ходов = 10 полуходов
+            if (moveCount > 0 && moveCount % 10 === 0) {
+                economy.white += calculateIncome('white');
+                economy.black += calculateIncome('black');
+                log("💰 ДЕНЬ ЖАЛОВАНИЯ: Оба игрока получили доход!");
+            }
+
+            if (!moveDetails && typeof sr !== 'undefined') { moveDetails = { from: { r: sr, c: sc }, to: mv }; }
+
             if (window.isOnlineActive()) {
-                // Передаем moveCount последним аргументом
                 window.sendMoveToCloud(board, nextTurn, moveDetails, castling, gameMode, moveCount);
             }
 
             loyalty--;
-            if (loyalty <= 0) {
-                consultGeminiLoyalty();
-                loyalty = 3;
-            }
+            if (loyalty <= 0) { consultGeminiLoyalty(); loyalty = 3; }
 
             turn = nextTurn;
             selected = null; moves = [];
-
             lastMoveData = moveDetails;
             updateLossCounters();
+            updateUI(); render(); updateMoraleUI();
 
-            updateUI(); render();
-            updateMoraleUI();
-
-            // --- ХОД ИИ ---
             if (aiEnabled && turn === aiColor) {
                 setTimeout(() => {
                     const before = lastMoveData;
                     makeAIMove();
-                    setTimeout(() => {
-                        if (before === lastMoveData) {
-                            checkGameState();
-                        }
-                    }, 50);
+                    setTimeout(() => { if (before === lastMoveData) { checkGameState(); } }, 50);
                 }, 150);
                 return;
             }
-
             checkGameState();
         }
-        let whiteMorale = 10;
-        let blackMorale = 10;
 
-        function consultGeminiLoyalty() {
-
-            const whiteLoss = parseInt(document.getElementById("loss-w").innerText);
-            const blackLoss = parseInt(document.getElementById("loss-b").innerText);
-
-            // более чувствительная мораль
-            whiteMorale = Math.max(0, 10 - whiteLoss / 3);
-            blackMorale = Math.max(0, 10 - blackLoss / 3);
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-
-                    const p = board[r][c];
-                    if (!p || getType(p) !== 'p') continue;
-
-                    const color = getCol(p);
-                    const morale = (color === "white") ? whiteMorale : blackMorale;
-
-                    if (morale > 3) continue;
-
-                    let chance = 0;
-
-                    if (morale <= 3) chance = 0.05 + Math.random() * 0.10;   // 5–15%
-                    if (morale <= 1) chance = 0.20 + Math.random() * 0.10;   // 20–30%
-
-                    // ПРОВЕРКА ВСЕХ 8 соседних клеток
-                    let enemyNearby = false;
-                    const dirs = [
-                        [1, 0], [-1, 0], [0, 1], [0, -1],
-                        [1, 1], [1, -1], [-1, 1], [-1, -1]
-                    ];
-
-                    for (let [dr, dc] of dirs) {
-                        const rr = r + dr, cc = c + dc;
-                        if (!onBd(rr, cc)) continue;
-                        const enemy = board[rr][cc];
-                        if (enemy && getCol(enemy) !== color) {
-                            enemyNearby = true;
-                            break;
-                        }
-                    }
-
-                    if (!enemyNearby) continue;
-
-                    // Измена
-                    if (Math.random() < chance) {
-                        board[r][c] = (color === "white") ? "P" : "p";
-                        log(`⚠ Пешка на (${r},${c}) изменила сторону!`);
-                    }
-                }
+        // === ИНТЕРФЕЙС ЭКОНОМИКИ (RENDER) ===
+        function renderGraveyard(myColor) {
+            const container = document.getElementById('graveyard-list');
+            container.innerHTML = '';
+            
+            const isMyTurn = (!myColor) || (myColor === turn);
+            
+            if (!isMyTurn) {
+                container.innerHTML = '<div class="text-gray-500 text-xs italic text-center mt-2">Магазин противника скрыт</div>';
+                return;
             }
-            updateMoraleUI();
 
+            const list = graveyard[turn];
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 text-xs italic">Пусто...</div>';
+                return;
+            }
+            
+            const counts = {};
+            list.forEach(x => { counts[x] = (counts[x] || 0) + 1; });
+
+            for (const [type, count] of Object.entries(counts)) {
+                const div = document.createElement('div');
+                div.className = 'shop-item';
+                if (shopSelected === type) div.classList.add('active');
+
+                const cost = REVIVE_COST[type];
+                const canAfford = economy[turn] >= cost;
+                
+                div.onclick = () => {
+                    if (window.isOnlineActive() && window.getOnlineColor() !== turn) return;
+                    if (!canAfford) { alert('Недостаточно монет!'); return; }
+                    selectShopItem(type);
+                };
+
+                const pieceSymbol = GP[turn === 'white' ? type : type.toUpperCase()]; 
+
+                div.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="shop-piece mr-2 text-white">${pieceSymbol}</span>
+                        <span class="text-xs text-gray-300">x${count}</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-coins coin-icon text-[10px]"></i>
+                        <span class="text-xs font-bold ${canAfford ? 'text-yellow-400' : 'text-red-500'}">${cost}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        function selectShopItem(type) {
+            shopSelected = type;
+            document.getElementById('cancel-shop-btn').classList.remove('hidden');
+            renderGraveyard(window.getOnlineColor()); 
+            render(); 
+            log(`Выбрано: ${type.toUpperCase()}. Доступны только стартовые линии.`);
+        }
+
+        window.cancelShop = () => {
+            shopSelected = null;
+            document.getElementById('cancel-shop-btn').classList.add('hidden');
+            renderGraveyard(window.getOnlineColor());
             render();
         }
 
-        function isSquareThreatened(bd, r, c, byColor) {
-
-            // --- Пешки ---
-            if (byColor === "white") {
-                // белая пешка бьёт (r,c), если стоит на (r+1, c±1)
-                let rr = r + 1;
-                for (let dc of [-1, +1]) {
-                    let cc = c + dc;
-                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                        let p = bd[rr][cc];
-                        if (p && getCol(p) === "white" && getType(p) === "p") return true;
-                    }
-                }
-            } else {
-                // чёрная пешка бьёт (r,c), если стоит на (r-1, c±1)
-                let rr = r - 1;
-                for (let dc of [-1, +1]) {
-                    let cc = c + dc;
-                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                        let p = bd[rr][cc];
-                        if (p && getCol(p) === "black" && getType(p) === "p") return true;
-                    }
-                }
-            }
-
-
-            // --- 2. Конь / Химера / Легион ---
-            const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
-            const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
-            for (let [dr, dc] of [...knightSmall, ...knightLarge]) {
-                let rr = r + dr, cc = c + dc;
-                if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                    let p = bd[rr][cc];
-                    if (!p) continue;
-                    if (getCol(p) !== byColor) continue;
-
-                    let t = getType(p);
-                    if (t === 'n' && knightSmall.some(k => k[0] === dr && k[1] === dc)) return true;
-                    if (t === 'h' && knightLarge.some(k => k[0] === dr && k[1] === dc)) return true;
-                    if (t === 'x') return true; // химера бьёт и малыми, и большими
-                }
-            }
-
-            // --- 3. Ладья / Ферзь / Z / Архонт прямой ---
-            const rookDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-            for (let [dr, dc] of rookDirs) {
-                let rr = r + dr, cc = c + dc;
-                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                    let p = bd[rr][cc];
-                    if (p) {
-                        if (getCol(p) === byColor) {
-                            let t = getType(p);
-                            if (t === 'r' || t === 'q' || t === 'z' || t === 'a' || t === 'c')
-                                return true;
-                        }
-                        break; // первая фигура блокирует дальше
-                    }
-                    rr += dr; cc += dc;
-                }
-            }
-
-            // --- 4. Слон / Ферзь / Z / Архонт диагонали ---
-            const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
-            for (let [dr, dc] of diagDirs) {
-                let rr = r + dr, cc = c + dc;
-
-                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                    let p = bd[rr][cc];
-
-                    if (p) {
-                        if (getCol(p) === byColor) {
-                            let t = getType(p);
-
-                            // слон / ферзь / z — нормальная диагональная угроза
-                            if (t === 'b' || t === 'q' || t === 'z') return true;
-
-                            // A архонт: бьёт диагональю только если находится на светлой клетке
-                            if (t === 'a' && isLight(rr, cc)) return true;
-
-                            // C архонт: бьёт диагональю только если находится на тёмной клетке
-                            if (t === 'c' && !isLight(rr, cc)) return true;
-                        }
-
-                        // Любая фигура — блокирует дальше
-                        break;
-                    }
-
-                    rr += dr;
-                    cc += dc;
-                }
-            }
-
-
-            // --- 5. Король ---
-            for (let dr of [-1, 0, 1]) {
-                for (let dc of [-1, 0, 1]) {
-                    if (dr === 0 && dc === 0) continue;
-                    let rr = r + dr, cc = c + dc;
-                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                        let p = bd[rr][cc];
-                        if (p && getCol(p) === byColor && getType(p) === 'k') return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-
-        function checkLoyaltyLocal(wLoss, bLoss) {
-            const lossDiff = wLoss - bLoss;
-            for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) {
-                const p = board[r][c];
-                if (p && getType(p) === 'p') {
-                    // Простейшая проверка на "изоляцию" (нет соседей по бокам)
-                    let isolated = true;
-                    for (let dc of [-1, 1]) {
-                        if (onBd(r, c + dc) && board[r][c + dc] && getCol(board[r][c + dc]) === getCol(p)) isolated = false;
-                    }
-
-                    let chance = 0.1;
-                    if (isolated) chance += 0.2;
-
-                    if (getCol(p) === 'white' && lossDiff >= 2 && Math.random() < chance) {
-                        board[r][c] = 'P'; log('ИЗМЕНА! Белая пешка перешла к черным.');
-                    }
-                    if (getCol(p) === 'black' && lossDiff <= -2 && Math.random() < chance) {
-                        board[r][c] = 'p'; log('ИЗМЕНА! Черная пешка перешла к белым.');
-                    }
-                }
-            }
-        }
-
-        window.activateNewMode = () => {
-            const player = turn;
-
-            // Запоминаем, что сторона использовала своё воскрешение
-            if (player === 'white') whiteRevived = true;
-            else blackRevived = true;
-
-            // старое поведение
-            gameMode = 'new_mode';
-            newModePlayer = player;
-            kingDead = true;
-
-            document.getElementById('end-modal').classList.remove('active');
-
-            let legions = 0, archons = 0;
-            for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) {
-                const p = board[r][c];
-                if (p && getCol(p) === player) {
-                    if (['h', 'x'].includes(getType(p))) legions++;
-                    if (['a', 'c'].includes(getType(p))) archons++;
-                }
-            }
-            for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) if (board[r][c] && getCol(board[r][c]) === player) board[r][c] = null;
-
-            const baseR = player === 'white' ? 7 : 0, pawnR = player === 'white' ? 6 : 1;
-            const r1 = player === 'white' ? ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'] : ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
-            board[baseR] = [...r1]; board[pawnR] = Array(8).fill(player === 'white' ? 'p' : 'P');
-
-            for (let c = 0; c < 8; c++) {
-                const p = board[baseR][c];
-                if (getType(p) === 'n' && legions > 0) { board[baseR][c] = player === 'white' ? 'h' : 'H'; legions--; }
-                if (getType(p) === 'r' && archons > 0) {
-                    const isL = isLight(baseR, c);
-                    board[baseR][c] = player === 'white' ? (isL ? 'a' : 'c') : (isL ? 'A' : 'C');
-                    archons--;
-                }
-            }
-            board[baseR][4] = null;
-            board[baseR][3] = player === 'white' ? 'z' : 'Z';
-
-            log("НОВЫЙ РЕЖИМ! Король мертв. Ферзь (Z) — Лидер.");
-
-            if (window.isOnlineActive()) window.sendMoveToCloud(board, turn, {}, castling, gameMode);
-            render();
-        };
-        window.acceptProp = () => {
-            document.getElementById('dip-modal').classList.remove('active');
-
-            // Определяем цвет новой Химеры (она принадлежит тому, чьего коня съели, то есть противнику ходившего)
-            // Если ходили белые (turn='white'), то съели черного -> Химера становится черной ('X')
-            const code = turn === 'white' ? 'X' : 'x';
-
-            board[pendingMove.r][pendingMove.c] = code;
-            board[selected.r][selected.c] = null;
-
-            // === ВАЖНО: Инициализируем трекер лояльности для новой Химеры ===
-            const key = `${pendingMove.r},${pendingMove.c}`;
-            chimeraTracker[key] = 0; // 0 ходов использовано
-
-            log('ХИМЕРА рождена. Лояльность нестабильна.');
-            endTurn(selected.r, selected.c, pendingMove);
-            pendingMove = null;
-        };
-        window.declineProp = () => {
-            document.getElementById('dip-modal').classList.remove('active');
-            board[pendingMove.r][pendingMove.c] = board[selected.r][selected.c];
-            board[selected.r][selected.c] = null;
-            log('ОТКАЗ. Враг уничтожен.');
-            endTurn(selected.r, selected.c, pendingMove);
-            pendingMove = null;
-        };
-
-        // === ОБНОВЛЕННЫЙ RENDER С АНИМАЦИЕЙ И ЛИНИЯМИ ===
-        function render() {
-            const div = document.getElementById('board');
-            const svg = document.getElementById('svg-overlay');
-
-            // Очищаем только клетки, SVG оставляем (но очищаем его контент внутри)
-            // Чтобы не удалять сам SVG элемент, очищаем div.innerHTML, но потом восстанавливаем SVG?
-            // Проще: удаляем все div.cell, оставляем svg
-            const cells = div.querySelectorAll('.cell');
-            cells.forEach(c => c.remove());
-            svg.innerHTML = ''; // Очищаем линии
-
-            let inChk = inCheck(turn, board);
-
-            // Логика поворота через CSS
-            const wrapper = document.querySelector('.board-wrapper');
-            const isFlipped = (myOnlineColor === 'black');
-
-            if (isFlipped) wrapper.classList.add('flipped');
-            else wrapper.classList.remove('flipped');
-
-            // Рисуем клетки всегда в стандартном порядке (0..7), поворот делает CSS
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const d = document.createElement('div');
-                    d.className = `cell ${(r + c) % 2 ? 'dark' : 'light'}`;
-                    if (selected && selected.r === r && selected.c === c) d.classList.add('selected');
-
-                    const p = board[r][c];
-                    if (inChk && p && getCol(p) === turn) {
-                        const target = (gameMode === 'new_mode' && kingDead && turn === newModePlayer) ? 'z' : 'k';
-                        if (getType(p) === target) d.classList.add('check');
-                    }
-
-                    if (p) {
-                        const s = document.createElement('span');
-                        s.className = `piece ${getCol(p)}`;
-                        const t = getType(p);
-                        if (t === 'a' || t === 'c') {
-                            s.classList.add('archon');
-                            if (t === 'a') s.classList.add('archon-light'); else s.classList.add('archon-dark');
-                            s.innerHTML += `<span class="badge">${t === 'a' ? 'A' : 'C'}</span>`;
-                        }
-                        if (t === 'h') { s.classList.add('legion'); s.innerHTML += `<span class="badge">L</span>`; }
-                        if (t === 'x') { s.classList.add('chimera'); s.innerHTML += `<span class="badge">X</span>`; }
-                        if (t === 'z') { s.classList.add('heavy'); s.innerHTML += `<span class="badge">Z</span>`; }
-
-                        s.innerText = GP[p] || GP[getType(p) === 'z' ? (getCol(p) === 'white' ? 'q' : 'Q') : p] || p;
-                        d.appendChild(s);
-                    }
-
-                    const mv = moves.find(m => m.r === r && m.c === c);
-                    if (mv) {
-                        const h = document.createElement('div'); h.className = 'hint';
-                        if (mv.prop) h.classList.add('union-hint');
-                        else if (mv.atk) h.classList.add('attack-hint');
-                        else if (mv.fuse) { h.classList.add('special-hint', 'fuse'); h.innerText = 'FUSE'; }
-                        else if (mv.merge) { h.classList.add('special-hint', 'legion'); h.innerText = 'LEGION'; }
-                        else if (mv.castle) { h.classList.add('special-hint', 'castle'); h.innerText = 'CASTLE'; }
-                        else h.classList.add('move-hint');
-                        d.appendChild(h);
-                    }
-                    d.onclick = () => clickCell(r, c);
-                    div.appendChild(d);
-                }
-            }
-            ;
-
-            // === ОТРИСОВКА ЛИНИИ ПОСЛЕДНЕГО ХОДА ===
-            if (lastMoveData && lastMoveData.from && lastMoveData.to) {
-                // ИСПРАВЛЕННАЯ ССЫЛКА НА ПРОСТРАНСТВО ИМЕН SVG
-                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                line.classList.add("last-move-purple");
-
-
-                // Координаты центров клеток (в процентах)
-                // Ширина клетки = 12.5%, Центр = 6.25%
-                const x1 = (lastMoveData.from.c * 12.5 + 6.25) + '%';
-                const y1 = (lastMoveData.from.r * 12.5 + 6.25) + '%';
-                const x2 = (lastMoveData.to.c * 12.5 + 6.25) + '%';
-                const y2 = (lastMoveData.to.r * 12.5 + 6.25) + '%';
-
-                line.setAttribute('x1', x1);
-                line.setAttribute('y1', y1);
-                line.setAttribute('x2', x2);
-                line.setAttribute('y2', y2);
-                line.setAttribute('stroke', 'rgba(124, 58, 237, 0.5)'); // Полупрозрачный фиолетовый
-                line.setAttribute('stroke-width', '6');
-                line.setAttribute('stroke-linecap', 'round');
-
-                svg.appendChild(line);
-            }
-        }
-
-        function updateUI() {
-            document.getElementById('turn-display').innerText = turn.toUpperCase();
-            document.getElementById('mode-display').innerText = gameMode === 'new_mode' ? 'LAST STAND' : 'КЛАССИКА';
-            document.getElementById('loyalty').innerText = loyalty;
-        }
         function log(t) { const l = document.getElementById('log'); l.innerHTML = `<div>> ${t}</div>` + l.innerHTML; }
 
-        window.getBoardState = () => board;
-        // Измени сигнатуру функции, добавив newTracker
-        window.syncBoardFromOnline = (newBoard, newTurn, newCastling, newTracker) => {
-            // Убираем проверку JSON.stringify, чтобы точно обновить трекер
-            board = newBoard;
-            turn = newTurn;
-            if (newCastling) castling = newCastling;
-            if (newTracker) chimeraTracker = newTracker; // <--- ПРИМЕНЯЕМ ТРЕКЕР ИЗ СЕТИ
-
-            selected = null; moves = [];
-            render(); updateUI(); checkGameState();
-        };
-
-        function isDefended(bd, r, c, color) {
-
-            // --- Пешки ---
-            if (color === "white") {
-                let rr = r + 1;
-                for (let dc of [-1, +1]) {
-                    let cc = c + dc;
-                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                        const p = bd[rr][cc];
-                        if (p && getCol(p) === "white" && getType(p) === "p") return true;
-                    }
-                }
-            } else {
-                let rr = r - 1;
-                for (let dc of [-1, +1]) {
-                    let cc = c + dc;
-                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                        const p = bd[rr][cc];
-                        if (p && getCol(p) === "black" && getType(p) === "p") return true;
-                    }
-                }
-            }
-
-            // --- Конь / Химера / Легион ---
-            const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
-            const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]];
-            for (let [dr, dc] of [...knightSmall, ...knightLarge]) {
-                let rr = r + dr, cc = c + dc;
-                if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                    let p = bd[rr][cc];
-                    if (!p || getCol(p) !== color) continue;
-                    let t = getType(p);
-                    if (t === "n" && knightSmall.some(k => k[0] === dr && k[1] === dc)) return true;
-                    if (t === "h" && knightLarge.some(k => k[0] === dr && k[1] === dc)) return true;
-                    if (t === "x") return true;
-                }
-            }
-
-            // --- Ладья / ферзь / z / архонт прямые ---
-            const rookDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-            for (let [dr, dc] of rookDirs) {
-                let rr = r + dr, cc = c + dc;
-                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                    let p = bd[rr][cc];
-                    if (p) {
-                        if (getCol(p) === color) {
-                            let t = getType(p);
-                            if (t === "r" || t === "q" || t === "z" || t === "a" || t === "c") return true;
-                        }
-                        break;
-                    }
-                    rr += dr; cc += dc;
-                }
-            }
-
-            // --- Слон / ферзь / archon диагонали ---
-            const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
-            for (let [dr, dc] of diagDirs) {
-                let rr = r + dr, cc = c + dc;
-                while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                    let p = bd[rr][cc];
-                    if (p) {
-                        if (getCol(p) === color) {
-                            let t = getType(p);
-                            if (t === "b" || t === "q" || t === "z" || t === "a" || t === "c") return true;
-                        }
-                        break;
-                    }
-                    rr += dr; cc += dc;
-                }
-            }
-
-            // --- Король ---
-            for (let dr of [-1, 0, 1]) {
-                for (let dc of [-1, 0, 1]) {
-                    if (dr === 0 && dc === 0) continue;
-                    let rr = r + dr, cc = c + dc;
-                    if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
-                        let p = bd[rr][cc];
-                        if (p && getCol(p) === color && getType(p) === "k") return true;
-                    }
-                }
-            }
-
+        function consultGeminiLoyalty() {
+            const whiteLoss = parseInt(document.getElementById("loss-w").innerText);
+            const blackLoss = parseInt(document.getElementById("loss-b").innerText);
+            whiteMorale = Math.max(0, 10 - whiteLoss / 3);
+            blackMorale = Math.max(0, 10 - blackLoss / 3);
+            for (let r = 0; r < 8; r++) { for (let c = 0; c < 8; c++) { const p = board[r][c]; if (!p || getType(p) !== 'p') continue; const color = getCol(p); const morale = (color === "white") ? whiteMorale : blackMorale; if (morale > 3) continue; let chance = 0; if (morale <= 3) chance = 0.05 + Math.random() * 0.10; if (morale <= 1) chance = 0.20 + Math.random() * 0.10; let enemyNearby = false; const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]; for (let [dr, dc] of dirs) { const rr = r + dr, cc = c + dc; if (!onBd(rr, cc)) continue; const enemy = board[rr][cc]; if (enemy && getCol(enemy) !== color) { enemyNearby = true; break; } } if (!enemyNearby) continue; if (Math.random() < chance) { board[r][c] = (color === "white") ? "P" : "p"; log(`⚠ Пешка на (${r},${c}) изменила сторону!`); } } }
+            updateMoraleUI(); render();
+        }
+        function isSquareThreatened(bd, r, c, byColor) {
+            if (byColor === "white") { let rr = r + 1; for (let dc of [-1, +1]) { let cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p && getCol(p) === "white" && getType(p) === "p") return true; } } } else { let rr = r - 1; for (let dc of [-1, +1]) { let cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p && getCol(p) === "black" && getType(p) === "p") return true; } } }
+            const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]]; const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]]; for (let [dr, dc] of [...knightSmall, ...knightLarge]) { let rr = r + dr, cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (!p) continue; if (getCol(p) !== byColor) continue; let t = getType(p); if (t === 'n' && knightSmall.some(k => k[0] === dr && k[1] === dc)) return true; if (t === 'h' && knightLarge.some(k => k[0] === dr && k[1] === dc)) return true; if (t === 'x') return true; } }
+            const rookDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]; for (let [dr, dc] of rookDirs) { let rr = r + dr, cc = c + dc; while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p) { if (getCol(p) === byColor) { let t = getType(p); if (t === 'r' || t === 'q' || t === 'z' || t === 'a' || t === 'c') return true; } break; } rr += dr; cc += dc; } }
+            const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]]; for (let [dr, dc] of diagDirs) { let rr = r + dr, cc = c + dc; while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p) { if (getCol(p) === byColor) { let t = getType(p); if (t === 'b' || t === 'q' || t === 'z' || t === 'a' || t === 'c') return true; } break; } rr += dr; cc += dc; } }
+            for (let dr of [-1, 0, 1]) { for (let dc of [-1, 0, 1]) { if (dr === 0 && dc === 0) continue; let rr = r + dr, cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p && getCol(p) === byColor && getType(p) === 'k') return true; } } }
             return false;
         }
-
-
-
-        function evaluateBoard(board, color) {
-            let score = 0;
-            // запрещаем любые ходы, которые оставляют короля под шахом
-            const after = simulateMove(board, from, mv);
-            if (inCheck(color, after)) {
-                return -9999; // ход абсолютно запрещён
-            }
-
-            // Базовая стоимость фигур
-            const values = {
-                p: 1, n: 3, b: 3, r: 5, q: 9,
-                h: 5, a: 7, c: 7, x: 7, z: 10,
-                k: 1000
-            };
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const p = board[r][c];
-                    if (!p) continue;
-
-                    const type = p.toLowerCase();
-                    let v = values[type] || 0;
-
-                    // Материал
-                    if (getCol(p) === color) score += v;
-                    else score -= v;
-
-                    // Центр
-                    if ([3, 4].includes(r) && [3, 4].includes(c)) {
-                        if (getCol(p) === color) score += 0.3;
-                        else score -= 0.3;
-                    }
-
-                    // Активность (для лёгких фигур)
-                    if (['n', 'b', 'h', 'x'].includes(type)) {
-                        if (getCol(p) === color) score += 0.1;
-                    }
-                }
-            }
-
-            return score;
-        }
-
-        // === ВСТАВИТЬ ЭТО В КОНЕЦ СКРИПТА (ИЛИ ЗАМЕНИТЬ СТАРЫЕ ВЕРСИИ) ===
-
-        // 1. Новая функция: Считает, на сколько очков "горят" наши фигуры прямо сейчас
-        function getGlobalThreatScore(bd, color) {
-            let score = 0;
-            const opp = opposite(color);
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const p = bd[r][c];
-                    if (!p || getCol(p) !== color) continue;
-
-                    // Если фигура под боем - добавляем её стоимость в "индекс опасности"
-                    if (isSquareThreatened(bd, r, c, opp)) {
-                        // Важно: Короля не считаем здесь, для него есть inCheck
-                        // Иначе цифры будут зашкаливать
-                        if (getType(p) !== 'k') {
-                            score += getPieceValue(p);
-                        }
-                    }
-                }
-            }
-            return score;
-        }
-
-        // 2. Обновленный мозг ИИ
-        function makeAIMove() {
-            if (!aiEnabled) return;
-            if (window.isOnlineActive()) return;
-            if (pendingMove) { declineProp(); return; }
-
-            let bestScore = -999999;
-            let bestMove = null;
-
-            const currentlyInCheck = inCheck(aiColor, board);
-
-            // СЧИТАЕМ ИСХОДНЫЙ УРОВЕНЬ ОПАСНОСТИ
-            // (Например: "Мой ферзь под боем" -> currentDanger = 10)
-            const currentDanger = getGlobalThreatScore(board, aiColor);
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-
-                    if (!board[r][c] || getCol(board[r][c]) !== aiColor) continue;
-
-                    let rawMoves = getMoves(r, c, false).filter(m => !m.prop && !m.merge && !m.fuse);
-                    let legalMoves = [];
-
-                    for (let mv of rawMoves) {
-                        const after = simulateMove(board, { r, c }, mv);
-                        if (!inCheck(aiColor, after)) legalMoves.push(mv);
-                    }
-
-                    if (legalMoves.length === 0) continue;
-
-                    // Оптимизация: проверяем не все ходы, если их слишком много, но для шахмат 64 клеток это терпимо
-                    for (let mv of legalMoves) {
-                        // Передаем currentDanger в оценку
-                        const score = evaluateMove({ r, c }, mv, board, aiColor, currentlyInCheck, currentDanger);
-
-                        const randomNoise = Math.random() * 0.5; // Небольшой шум для вариативности
-
-                        if (score + randomNoise > bestScore) {
-                            bestScore = score + randomNoise;
-                            bestMove = { from: { r, c }, to: mv };
-                        }
-                    }
-                }
-            }
-
-            if (!bestMove) return;
-            executeAImove(bestMove);
-        }
-
-        // 3. Обновленная оценка с учетом "Глобальной Защиты"
-        function evaluateMove(from, mv, board, color, isCheckMode, initialDanger) {
-            let score = 0;
-            const piece = board[from.r][from.c];
-            const target = board[mv.r][mv.c];
-            const pieceType = getType(piece);
-
-            // Симулируем будущее
-            const after = simulateMove(board, from, mv);
-
-            // 1. ГЛОБАЛЬНАЯ БЕЗОПАСНОСТЬ (Самое важное изменение)
-            // Считаем опасность на доске ПОСЛЕ хода
-            const futureDanger = getGlobalThreatScore(after, color);
-
-            // Разница: на сколько очков мы уменьшили угрозы своим фигурам?
-            // Если Ферзь (10) был под боем, а стал в безопасности -> diff = 10.
-            // Если Ферзь был под боем, а мы съели угрозу пешкой -> diff = 10.
-            const dangerDiff = initialDanger - futureDanger;
-
-            // Умножаем на коэффициент (например, 2), чтобы спасение фигур было приоритетнее позиционки
-            score += dangerDiff * 2;
-
-
-            // 2. ВЗЯТИЕ (CAPTURE)
-            if (target) {
-                let val = getPieceValue(target);
-
-                // Если берем фигуру, которая создавала угрозу, это уже учтено в dangerDiff,
-                // но само взятие дает +материал.
-                score += val * 1.5;
-
-                // Если съедаем бесплатно (новая клетка не под боем)
-                if (!isSquareThreatened(after, mv.r, mv.c, opposite(color))) {
-                    score += 2;
-                }
-            }
-
-            // 3. БЕЗОПАСНОСТЬ САМОЙ ФИГУРЫ ПОСЛЕ ХОДА
-            const attackedNew = isSquareThreatened(after, mv.r, mv.c, opposite(color));
-            const defendedNew = isDefended(after, mv.r, mv.c, color);
-
-            if (attackedNew) {
-                let lossValue = getPieceValue(piece);
-                // Если размен (защищено), теряем не всё, а только разницу (если есть)
-                if (defendedNew) {
-                    // Если пешка ест ферзя, даже умерев — это выгодно. Штраф маленький.
-                    score -= lossValue * 0.5;
-                } else {
-                    // Зевок фигуры — огромный штраф
-                    score -= lossValue * 2;
-                }
-            }
-
-            // 4. ШАХ СОПЕРНИКУ
-            if (inCheck(opposite(color), after)) score += 3;
-
-            // 5. ЦЕНТР И РАЗВИТИЕ (Мелочи)
-            if ([3, 4].includes(mv.r) && [3, 4].includes(mv.c)) score += 0.5;
-            if (pieceType === 'p' && (color === 'white' ? from.r === 1 : from.r === 6)) score += 1; // Дебют пешками
-
-            // 6. ПАНИКА КОРОЛЯ (Только если реальный мат грозит, иначе пусть стоит)
-            if (pieceType === 'k' && !isCheckMode) score -= 1;
-
-            return score;
-        }
-        function getPieceValue(p) {
-            if (!p) return 0;
-            p = p.toLowerCase();
-            return {
-                'p': 1,
-                'n': 3,
-                'h': 5,
-                'b': 3,
-                'r': 5,
-                'a': 7,
-                'c': 7,
-                'q': 9,
-                'x': 7,
-                'z': 10,
-                'k': 100
-            }[p] || 0;
-        }
-
-        function opposite(col) {
-            return col === 'white' ? 'black' : 'white';
-        }
-
-        function simulateMove(bd, from, to) {
-            let copy = bd.map(row => [...row]);
-            copy[to.r][to.c] = copy[from.r][from.c];
-            copy[from.r][from.c] = null;
-            return copy;
-        }
-
-        function executeAImove(move) {
-            selected = move.from;
-            doMove(move.to);
-            selected = null;
-        }
-
+        function checkLoyaltyLocal(wLoss, bLoss) { const lossDiff = wLoss - bLoss; for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) { const p = board[r][c]; if (p && getType(p) === 'p') { let isolated = true; for (let dc of [-1, 1]) { if (onBd(r, c + dc) && board[r][c + dc] && getCol(board[r][c + dc]) === getCol(p)) isolated = false; } let chance = 0.1; if (isolated) chance += 0.2; if (getCol(p) === 'white' && lossDiff >= 2 && Math.random() < chance) { board[r][c] = 'P'; log('ИЗМЕНА! Белая пешка перешла к черным.'); } if (getCol(p) === 'black' && lossDiff <= -2 && Math.random() < chance) { board[r][c] = 'p'; log('ИЗМЕНА! Черная пешка перешла к белым.'); } } } }
+        window.activateNewMode = () => { const player = turn; if (player === 'white') whiteRevived = true; else blackRevived = true; gameMode = 'new_mode'; newModePlayer = player; kingDead = true; document.getElementById('end-modal').classList.remove('active'); let legions = 0, archons = 0; for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) { const p = board[r][c]; if (p && getCol(p) === player) { if (['h', 'x'].includes(getType(p))) legions++; if (['a', 'c'].includes(getType(p))) archons++; } } for (let r = 0; r < 8; r++)for (let c = 0; c < 8; c++) if (board[r][c] && getCol(board[r][c]) === player) board[r][c] = null; const baseR = player === 'white' ? 7 : 0, pawnR = player === 'white' ? 6 : 1; const r1 = player === 'white' ? ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'] : ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']; board[baseR] = [...r1]; board[pawnR] = Array(8).fill(player === 'white' ? 'p' : 'P'); for (let c = 0; c < 8; c++) { const p = board[baseR][c]; if (getType(p) === 'n' && legions > 0) { board[baseR][c] = player === 'white' ? 'h' : 'H'; legions--; } if (getType(p) === 'r' && archons > 0) { const isL = isLight(baseR, c); board[baseR][c] = player === 'white' ? (isL ? 'a' : 'c') : (isL ? 'A' : 'C'); archons--; } } board[baseR][4] = null; board[baseR][3] = player === 'white' ? 'z' : 'Z'; log("НОВЫЙ РЕЖИМ! Король мертв. Ферзь (Z) — Лидер."); if (window.isOnlineActive()) window.sendMoveToCloud(board, turn, {}, castling, gameMode); render(); };
+        window.acceptProp = () => { document.getElementById('dip-modal').classList.remove('active'); const code = turn === 'white' ? 'X' : 'x'; board[pendingMove.r][pendingMove.c] = code; board[selected.r][selected.c] = null; const key = `${pendingMove.r},${pendingMove.c}`; chimeraTracker[key] = 0; log('ХИМЕРА рождена. Лояльность нестабильна.'); endTurn(selected.r, selected.c, pendingMove); pendingMove = null; };
+        window.declineProp = () => { document.getElementById('dip-modal').classList.remove('active'); board[pendingMove.r][pendingMove.c] = board[selected.r][selected.c]; board[selected.r][selected.c] = null; log('ОТКАЗ. Враг уничтожен.'); endTurn(selected.r, selected.c, pendingMove); pendingMove = null; };
+        function render() { const div = document.getElementById('board'); const svg = document.getElementById('svg-overlay'); const cells = div.querySelectorAll('.cell'); cells.forEach(c => c.remove()); svg.innerHTML = ''; let inChk = inCheck(turn, board); const wrapper = document.querySelector('.board-wrapper'); const isFlipped = (myOnlineColor === 'black'); if (isFlipped) wrapper.classList.add('flipped'); else wrapper.classList.remove('flipped'); for (let r = 0; r < 8; r++) { for (let c = 0; c < 8; c++) { const d = document.createElement('div'); d.className = `cell ${(r + c) % 2 ? 'dark' : 'light'}`; if (selected && selected.r === r && selected.c === c) d.classList.add('selected'); if (shopSelected && !board[r][c]) { d.classList.add('place-mode'); const isAllowed = (turn === 'white' && (r === 6 || r === 7)) || (turn === 'black' && (r === 0 || r === 1)); if(isAllowed) d.classList.add('allowed-zone'); } const p = board[r][c]; if (inChk && p && getCol(p) === turn) { const target = (gameMode === 'new_mode' && kingDead && turn === newModePlayer) ? 'z' : 'k'; if (getType(p) === target) d.classList.add('check'); } if (p) { const s = document.createElement('span'); s.className = `piece ${getCol(p)}`; const t = getType(p); if (t === 'a' || t === 'c') { s.classList.add('archon'); if (t === 'a') s.classList.add('archon-light'); else s.classList.add('archon-dark'); s.innerHTML += `<span class="badge">${t === 'a' ? 'A' : 'C'}</span>`; } if (t === 'h') { s.classList.add('legion'); s.innerHTML += `<span class="badge">L</span>`; } if (t === 'x') { s.classList.add('chimera'); s.innerHTML += `<span class="badge">X</span>`; } if (t === 'z') { s.classList.add('heavy'); s.innerHTML += `<span class="badge">Z</span>`; } s.innerText = GP[p] || GP[getType(p) === 'z' ? (getCol(p) === 'white' ? 'q' : 'Q') : p] || p; d.appendChild(s); } const mv = moves.find(m => m.r === r && m.c === c); if (mv && !shopSelected) { const h = document.createElement('div'); h.className = 'hint'; if (mv.prop) h.classList.add('union-hint'); else if (mv.atk) h.classList.add('attack-hint'); else if (mv.fuse) { h.classList.add('special-hint', 'fuse'); h.innerText = 'FUSE'; } else if (mv.merge) { h.classList.add('special-hint', 'legion'); h.innerText = 'LEGION'; } else if (mv.castle) { h.classList.add('special-hint', 'castle'); h.innerText = 'CASTLE'; } else h.classList.add('move-hint'); d.appendChild(h); } d.onclick = () => clickCell(r, c); div.appendChild(d); } }; if (lastMoveData && lastMoveData.from && lastMoveData.to) { const line = document.createElementNS("http://www.w3.org/2000/svg", "line"); line.classList.add("last-move-purple"); const x1 = (lastMoveData.from.c * 12.5 + 6.25) + '%'; const y1 = (lastMoveData.from.r * 12.5 + 6.25) + '%'; const x2 = (lastMoveData.to.c * 12.5 + 6.25) + '%'; const y2 = (lastMoveData.to.r * 12.5 + 6.25) + '%'; line.setAttribute('x1', x1); line.setAttribute('y1', y1); line.setAttribute('x2', x2); line.setAttribute('y2', y2); line.setAttribute('stroke', 'rgba(124, 58, 237, 0.5)'); line.setAttribute('stroke-width', '6'); line.setAttribute('stroke-linecap', 'round'); svg.appendChild(line); } }
+        function isDefended(bd, r, c, color) { if (color === "white") { let rr = r + 1; for (let dc of [-1, +1]) { let cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { const p = bd[rr][cc]; if (p && getCol(p) === "white" && getType(p) === "p") return true; } } } else { let rr = r - 1; for (let dc of [-1, +1]) { let cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { const p = bd[rr][cc]; if (p && getCol(p) === "black" && getType(p) === "p") return true; } } } const knightSmall = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]]; const knightLarge = [[4, 1], [4, -1], [-4, 1], [-4, -1], [1, 4], [1, -4], [-1, 4], [-1, -4]]; for (let [dr, dc] of [...knightSmall, ...knightLarge]) { let rr = r + dr, cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (!p || getCol(p) !== color) continue; let t = getType(p); if (t === "n" && knightSmall.some(k => k[0] === dr && k[1] === dc)) return true; if (t === "h" && knightLarge.some(k => k[0] === dr && k[1] === dc)) return true; if (t === "x") return true; } } const rookDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]; for (let [dr, dc] of rookDirs) { let rr = r + dr, cc = c + dc; while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p) { if (getCol(p) === color) { let t = getType(p); if (t === "r" || t === "q" || t === "z" || t === "a" || t === "c") return true; } break; } rr += dr; cc += dc; } } const diagDirs = [[1, 1], [1, -1], [-1, 1], [-1, -1]]; for (let [dr, dc] of diagDirs) { let rr = r + dr, cc = c + dc; while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p) { if (getCol(p) === color) { let t = getType(p); if (t === "b" || t === "q" || t === "z" || t === "a" || t === "c") return true; } break; } rr += dr; cc += dc; } } for (let dr of [-1, 0, 1]) { for (let dc of [-1, 0, 1]) { if (dr === 0 && dc === 0) continue; let rr = r + dr, cc = c + dc; if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { let p = bd[rr][cc]; if (p && getCol(p) === color && getType(p) === "k") return true; } } } return false; }
+        function getGlobalThreatScore(bd, color) { let score = 0; const opp = opposite(color); for (let r = 0; r < 8; r++) { for (let c = 0; c < 8; c++) { const p = bd[r][c]; if (!p || getCol(p) !== color) continue; if (isSquareThreatened(bd, r, c, opp)) { if (getType(p) !== 'k') { score += getPieceValue(p); } } } } return score; }
+        function makeAIMove() { if (!aiEnabled) return; if (window.isOnlineActive()) return; if (pendingMove) { declineProp(); return; } let bestScore = -999999; let bestMove = null; const currentlyInCheck = inCheck(aiColor, board); const currentDanger = getGlobalThreatScore(board, aiColor); for (let r = 0; r < 8; r++) { for (let c = 0; c < 8; c++) { if (!board[r][c] || getCol(board[r][c]) !== aiColor) continue; let rawMoves = getMoves(r, c, false).filter(m => !m.prop && !m.merge && !m.fuse); let legalMoves = []; for (let mv of rawMoves) { const after = simulateMove(board, { r, c }, mv); if (!inCheck(aiColor, after)) legalMoves.push(mv); } if (legalMoves.length === 0) continue; for (let mv of legalMoves) { const score = evaluateMove({ r, c }, mv, board, aiColor, currentlyInCheck, currentDanger); const randomNoise = Math.random() * 0.5; if (score + randomNoise > bestScore) { bestScore = score + randomNoise; bestMove = { from: { r, c }, to: mv }; } } } } if (!bestMove) return; executeAImove(bestMove); }
+        function evaluateMove(from, mv, board, color, isCheckMode, initialDanger) { let score = 0; const piece = board[from.r][from.c]; const target = board[mv.r][mv.c]; const pieceType = getType(piece); const after = simulateMove(board, from, mv); const futureDanger = getGlobalThreatScore(after, color); const dangerDiff = initialDanger - futureDanger; score += dangerDiff * 2; if (target) { let val = getPieceValue(target); score += val * 1.5; if (!isSquareThreatened(after, mv.r, mv.c, opposite(color))) { score += 2; } } const attackedNew = isSquareThreatened(after, mv.r, mv.c, opposite(color)); const defendedNew = isDefended(after, mv.r, mv.c, color); if (attackedNew) { let lossValue = getPieceValue(piece); if (defendedNew) { score -= lossValue * 0.5; } else { score -= lossValue * 2; } } if (inCheck(opposite(color), after)) score += 3; if ([3, 4].includes(mv.r) && [3, 4].includes(mv.c)) score += 0.5; if (pieceType === 'p' && (color === 'white' ? from.r === 1 : from.r === 6)) score += 1; if (pieceType === 'k' && !isCheckMode) score -= 1; return score; }
+        function getPieceValue(p) { if (!p) return 0; p = p.toLowerCase(); return { 'p': 1, 'n': 3, 'h': 5, 'b': 3, 'r': 5, 'a': 7, 'c': 7, 'q': 9, 'x': 7, 'z': 10, 'k': 100 }[p] || 0; }
+        function opposite(col) { return col === 'white' ? 'black' : 'white'; }
+        function simulateMove(bd, from, to) { let copy = bd.map(row => [...row]); copy[to.r][to.c] = copy[from.r][from.c]; copy[from.r][from.c] = null; return copy; }
+        function executeAImove(move) { selected = move.from; doMove(move.to); selected = null; }
 
         initGame();
     </script>
